@@ -247,8 +247,8 @@ public class AddStockDialog {
         productBox.getChildren().addAll(fieldLabel("Product Name *"), cbProductName, errProduct);
 
         cbCategory = new ComboBox<>();
-        cbCategory.getItems().addAll("Raw Material", "Finished Good", "Packaging");
-        cbCategory.setPromptText("— Select —");
+        cbCategory.setEditable(true);
+        cbCategory.setPromptText("Enter or select category");
         cbCategory.setMaxWidth(Double.MAX_VALUE);
         styleInput(cbCategory);
 
@@ -440,9 +440,14 @@ public class AddStockDialog {
         double costPerUnit = tfCostPerUnit.getText().trim().isEmpty()
                 ? 0 : Double.parseDouble(tfCostPerUnit.getText().trim());
 
+        String category = cbCategory.isEditable()
+                ? cbCategory.getEditor().getText().trim().toUpperCase()
+                : cbCategory.getValue();
+        if (category == null || category.isEmpty()) category = null;
+
         Stock stock = new Stock(
                 productName,
-                cbCategory.getValue(),
+                category,
                 Double.parseDouble(tfQuantity.getText().trim()),
                 unit,
                 costPerUnit,
