@@ -391,11 +391,20 @@ public class InventoryView {
     private void openEditDialog() {
         StockRow sel = table.getSelectionModel().getSelectedItem();
         if (sel == null) { showError("Please select a row to edit."); return; }
-        showStockDialog(sel);
+
+        int threshold = 5;
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement("SELECT low_stock_threshold FROM stocks WHERE id = ?")) {
+            ps.setInt(1, sel.getId());
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) threshold = rs.getInt(1);
+        } catch (Exception e) { e.printStackTrace(); }
+
+        showStockDialog(sel, threshold);
     }
 
     // ── Styled Add / Edit Dialog ──────────────────────────────────────────────
-    private void showStockDialog(StockRow existing) {
+    private void showStockDialog(StockRow existing, int thresholdVal) {
         Stage dialog = new Stage();
         dialog.initOwner(stage);
         dialog.initModality(Modality.APPLICATION_MODAL);
@@ -440,14 +449,39 @@ public class InventoryView {
         TextField fQty      = styledField("Quantity *",            isEdit ? existing.getQuantity()    : "");
         TextField fUnit     = styledField("Unit (e.g. kg, pcs) *", isEdit ? existing.getUnit()        : "");
         TextField fCost     = styledField("Cost per Unit (₱)",     isEdit ? existing.getCostPerUnit().replace("₱","") : "");
-        TextField fSupplier = styledField("e.g. San Rafael Meats", isEdit ? existing.getSupplier()   : "");
+        TextField fSupplier = styledField("Supplier",              isEdit ? existing.getSupplier()   : "");
         TextField fDate     = styledField("YYYY-MM-DD",
                 isEdit ? existing.getDateReceived() : LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE));
+        TextField fLowStock = styledField("e.g. 5",                String.valueOf(thresholdVal));
         TextArea fNotes = new TextArea(isEdit ? existing.getNotes() : "");
         fNotes.setPromptText("Optional: batch number, condition, remarks…");
         fNotes.setPrefRowCount(3);
         fNotes.setWrapText(true);
         fNotes.setStyle(inputStyle());
+
+        // Error labels
+        Label errName = errorLabel("Please enter a product name.");
+        Label errQty  = errorLabel("Enter a valid quantity.");
+        Label errCost = errorLabel("Cost must be at least 1.00");
+        Label errLow  = errorLabel("Alert cannot exceed quantity.");
+
+        // Real-time validation
+        fName.textProperty().addListener((o, ov, nv) -> {
+            if (nv.trim().isEmpty()) showFieldError(fName, errName);
+            else clearFieldError(fName, errName);
+        });
+        fQty.textProperty().addListener((o, ov, nv) -> {
+            try {
+                double qty = Double.parseDouble(nv.trim());
+                if (qty <= 0) showFieldError(fQty, errQty);
+                else {
+                    clearFieldError(fQty, errQty);
+                    validateEditLowStock(fQty, fLowStock, errLow);
+                }
+            } catch (NumberFormatException e) { showFieldError(fQty, errQty); }
+        });
+        fCost.textProperty().addListener((o, ov, nv) -> validateEditCost(fCost, errCost));
+        fLowStock.textProperty().addListener((o, ov, nv) -> validateEditLowStock(fQty, fLowStock, errLow));
 
         Label errLabel = new Label();
         errLabel.setStyle("-fx-font-family: Sans Serif; -fx-font-size: 12px; -fx-text-fill: #D32F2F;");
@@ -460,14 +494,26 @@ public class InventoryView {
 
         body.getChildren().addAll(
                 sectionLabel("PRODUCT DETAILS"),
-                dialogRow2(dialogField("Product Name *", fName), dialogField("Category", fCategory)),
+                dialogRow2(
+                    new VBox(5, dialogField("Product Name *", fName), errName),
+                    dialogField("Category", fCategory)
+                ),
                 dialogSep(),
                 sectionLabel("STOCK QUANTITY"),
-                dialogRow2(dialogField("Quantity *", fQty), dialogField("Unit *", fUnit)),
-                dialogRow2(dialogField("Cost per Unit (₱)", fCost), dialogField("Supplier", fSupplier)),
+                dialogRow2(
+                    new VBox(5, dialogField("Quantity *", fQty), errQty),
+                    dialogField("Unit *", fUnit)
+                ),
+                dialogRow2(
+                    new VBox(5, dialogField("Cost per Unit (₱)", fCost), errCost),
+                    dialogField("Supplier", fSupplier)
+                ),
                 dialogSep(),
                 sectionLabel("DELIVERY INFO"),
-                dialogField("Date Received (YYYY-MM-DD)", fDate),
+                dialogRow2(
+                    dialogField("Date Received (YYYY-MM-DD)", fDate),
+                    new VBox(5, dialogField("Low Stock Alert At", fLowStock), errLow)
+                ),
                 dialogSep(),
                 sectionLabel("NOTES"),
                 dialogField("Notes (optional)", fNotes),
@@ -496,38 +542,44 @@ public class InventoryView {
             String qtyStr  = fQty.getText().trim();
             String unit    = fUnit.getText().trim();
             String costStr = fCost.getText().trim();
+            String lowStr  = fLowStock.getText().trim();
 
-            if (name.isEmpty() || qtyStr.isEmpty() || unit.isEmpty()) {
-                errLabel.setText("⚠  Product Name, Quantity, and Unit are required.");
+            validateEditCost(fCost, errCost);
+            validateEditLowStock(fQty, fLowStock, errLow);
+
+            if (name.isEmpty() || qtyStr.isEmpty() || unit.isEmpty() || 
+                errName.isVisible() || errQty.isVisible() || errCost.isVisible() || errLow.isVisible()) {
+                errLabel.setText("⚠  Please fix the errors before saving.");
                 return;
             }
             double qty, cost;
-            try { qty = Double.parseDouble(qtyStr); }
-            catch (NumberFormatException ex) { errLabel.setText("⚠  Quantity must be a number."); return; }
-            try { cost = costStr.isEmpty() ? 0 : Double.parseDouble(costStr); }
-            catch (NumberFormatException ex) { errLabel.setText("⚠  Cost per unit must be a number."); return; }
+            int low;
+            qty = Double.parseDouble(qtyStr);
+            cost = costStr.isEmpty() ? 0 : Double.parseDouble(costStr);
+            try { low = Integer.parseInt(lowStr); } catch (NumberFormatException ex) { low = 5; }
 
             String dateStr = fDate.getText().trim().isEmpty() ? null : fDate.getText().trim();
 
             try (Connection conn = DatabaseConnection.getConnection()) {
                 if (!isEdit) {
                     PreparedStatement ps = conn.prepareStatement(
-                            "INSERT INTO stocks (product_name, category, quantity, unit, cost_per_unit, supplier, date_received, notes) " +
-                                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+                            "INSERT INTO stocks (product_name, category, quantity, unit, cost_per_unit, supplier, date_received, notes, low_stock_threshold) " +
+                                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
                     ps.setString(1, name);     ps.setString(2, fCategory.getText().trim());
                     ps.setDouble(3, qty);      ps.setString(4, unit);
                     ps.setDouble(5, cost);     ps.setString(6, fSupplier.getText().trim());
                     ps.setString(7, dateStr);  ps.setString(8, fNotes.getText().trim());
+                    ps.setInt(9, low);
                     ps.executeUpdate();
                 } else {
                     PreparedStatement ps = conn.prepareStatement(
                             "UPDATE stocks SET product_name=?, category=?, quantity=?, unit=?, " +
-                                    "cost_per_unit=?, supplier=?, date_received=?, notes=? WHERE id=?");
+                                    "cost_per_unit=?, supplier=?, date_received=?, notes=?, low_stock_threshold=? WHERE id=?");
                     ps.setString(1, name);     ps.setString(2, fCategory.getText().trim());
                     ps.setDouble(3, qty);      ps.setString(4, unit);
                     ps.setDouble(5, cost);     ps.setString(6, fSupplier.getText().trim());
                     ps.setString(7, dateStr);  ps.setString(8, fNotes.getText().trim());
-                    ps.setInt(9, existing.getId());
+                    ps.setInt(9, low);         ps.setInt(10, existing.getId());
                     ps.executeUpdate();
                 }
                 dialog.close();
@@ -592,6 +644,54 @@ public class InventoryView {
         sep.setPrefHeight(1);
         sep.setStyle("-fx-background-color: " + L_BORDER + ";");
         return sep;
+    }
+
+    private Label errorLabel(String text) {
+        Label lbl = new Label(text);
+        lbl.setStyle("-fx-font-family: Sans Serif; -fx-font-size: 11px; -fx-text-fill: #D32F2F;");
+        lbl.setVisible(false);
+        lbl.setManaged(false);
+        return lbl;
+    }
+
+    private void showFieldError(Control control, Label errLabel) {
+        control.setStyle(inputStyle() + " -fx-border-color: #D32F2F;");
+        errLabel.setVisible(true);
+        errLabel.setManaged(true);
+    }
+
+    private void clearFieldError(Control control, Label errLabel) {
+        control.setStyle(inputStyle());
+        errLabel.setVisible(false);
+        errLabel.setManaged(false);
+    }
+
+    private void validateEditCost(TextField fCost, Label errCost) {
+        try {
+            String val = fCost.getText().trim();
+            if (val.isEmpty()) { clearFieldError(fCost, errCost); return; }
+            double cost = Double.parseDouble(val);
+            if (cost < 1) showFieldError(fCost, errCost);
+            else clearFieldError(fCost, errCost);
+        } catch (NumberFormatException e) {
+            errCost.setText("Invalid cost amount.");
+            showFieldError(fCost, errCost);
+        }
+    }
+
+    private void validateEditLowStock(TextField fQty, TextField fLow, Label errLow) {
+        try {
+            String qStr = fQty.getText().trim();
+            String lStr = fLow.getText().trim();
+            if (qStr.isEmpty() || lStr.isEmpty()) { clearFieldError(fLow, errLow); return; }
+            double qty = Double.parseDouble(qStr);
+            double low = Double.parseDouble(lStr);
+            if (low > qty) showFieldError(fLow, errLow);
+            else clearFieldError(fLow, errLow);
+        } catch (NumberFormatException e) {
+            errLow.setText("Invalid threshold number.");
+            showFieldError(fLow, errLow);
+        }
     }
 
     private Button dialogBtn(String text, boolean primary) {
