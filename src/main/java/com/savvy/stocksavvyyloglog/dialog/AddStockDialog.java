@@ -79,7 +79,7 @@ public class AddStockDialog {
     private String errorFg()   { return darkMode ? D_ERROR_FG   : L_ERROR_FG;   }
 
     // ── Fields ────────────────────────────────────────────────────────────────
-    private ComboBox<String> cbProductName;
+    private TextField        tfProductName;
     private ComboBox<String> cbCategory;
     private TextField        tfQuantity;
     private ComboBox<String> cbUnit;
@@ -254,25 +254,20 @@ public class AddStockDialog {
 
     // ── Product Row ───────────────────────────────────────────────────────────
     private HBox buildProductRow() {
-        cbProductName = new ComboBox<>();
-        cbProductName.setEditable(true); // FIX: allow typing custom product names
-        cbProductName.getItems().addAll(
-                "Longanisa (Garlic)", "Longanisa (Sweet)",
-                "Tocino", "Tapa", "Longganisang Hamonado"
-        );
-        cbProductName.setPromptText("\u2014 Select or type product \u2014");
-        cbProductName.setMaxWidth(Double.MAX_VALUE);
-        styleInput(cbProductName);
-        cbProductName.valueProperty().addListener((o, ov, nv) -> {
+        tfProductName = new TextField();
+        tfProductName.setPromptText("Enter product name");
+        tfProductName.setMaxWidth(Double.MAX_VALUE);
+        styleInput(tfProductName);
+        tfProductName.textProperty().addListener((o, ov, nv) -> {
             updatePreview();
-            clearError(cbProductName, errProduct);
+            clearError(tfProductName, errProduct);
         });
 
-        errProduct = errorLabel("Please select or enter a product.");
+        errProduct = errorLabel("Please enter a product name.");
 
         VBox productBox = new VBox(5);
         HBox.setHgrow(productBox, Priority.ALWAYS);
-        productBox.getChildren().addAll(fieldLabel("Product Name *"), cbProductName, errProduct);
+        productBox.getChildren().addAll(fieldLabel("Product Name *"), tfProductName, errProduct);
 
         cbCategory = new ComboBox<>();
         cbCategory.setEditable(true);
@@ -455,11 +450,7 @@ public class AddStockDialog {
             expiry = dpExpiryDate.getValue().format(DateTimeFormatter.ISO_LOCAL_DATE);
         }
 
-        // FIX: read editable ComboBox value correctly
-        String productName = cbProductName.getEditor() != null && cbProductName.isEditable()
-                ? cbProductName.getEditor().getText().trim()
-                : cbProductName.getValue();
-        if (productName == null || productName.isEmpty()) productName = cbProductName.getValue();
+        String productName = tfProductName.getText().trim();
 
         double costPerUnit = tfCostPerUnit.getText().trim().isEmpty()
                 ? 0 : Double.parseDouble(tfCostPerUnit.getText().trim());
@@ -552,12 +543,9 @@ public class AddStockDialog {
     private boolean validateInputs() {
         boolean valid = true;
 
-        // FIX: check editor text for editable ComboBox
-        String productVal = cbProductName.isEditable()
-                ? cbProductName.getEditor().getText().trim()
-                : cbProductName.getValue();
-        if (productVal == null || productVal.isEmpty()) {
-            showError(cbProductName, errProduct);
+        String productVal = tfProductName.getText().trim();
+        if (productVal.isEmpty()) {
+            showError(tfProductName, errProduct);
             valid = false;
         }
 
@@ -575,9 +563,7 @@ public class AddStockDialog {
 
     // ── Live Preview ──────────────────────────────────────────────────────────
     private void updatePreview() {
-        String product  = cbProductName.isEditable()
-                ? cbProductName.getEditor().getText().trim()
-                : cbProductName.getValue();
+        String product  = tfProductName.getText().trim();
         String qtyText  = tfQuantity.getText().trim();
         String unit     = cbUnit.getValue();
         String costText = tfCostPerUnit.getText().trim();
@@ -600,8 +586,7 @@ public class AddStockDialog {
 
     // ── Clear ─────────────────────────────────────────────────────────────────
     private void clearForm() {
-        cbProductName.setValue(null);
-        if (cbProductName.isEditable()) cbProductName.getEditor().clear();
+        tfProductName.clear();
         cbCategory.setValue(null);
         tfQuantity.clear();
         cbUnit.setValue("kg");
@@ -612,7 +597,7 @@ public class AddStockDialog {
         tfLowStockThreshold.setText("5");
         taNotes.clear();
         setVisible(previewBox, false);
-        clearError(cbProductName, errProduct);
+        clearError(tfProductName, errProduct);
         clearError(tfQuantity, errQty);
     }
 
