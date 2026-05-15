@@ -272,8 +272,8 @@ public class AddStockDialog {
         });
 
         cbUnit = new ComboBox<>();
-        cbUnit.getItems().addAll("kg", "g", "pcs", "packs", "trays", "boxes");
-        cbUnit.setValue("kg");
+        cbUnit.setEditable(true);
+        cbUnit.setPromptText("Enter unit");
         cbUnit.setPrefWidth(90);
         styleInput(cbUnit);
         cbUnit.valueProperty().addListener((o, ov, nv) -> updatePreview());
@@ -444,6 +444,11 @@ public class AddStockDialog {
                 ? cbCategory.getEditor().getText().trim().toUpperCase()
                 : cbCategory.getValue();
         if (category == null || category.isEmpty()) category = null;
+
+        String unit = cbUnit.isEditable()
+                ? cbUnit.getEditor().getText().trim().toUpperCase()
+                : cbUnit.getValue();
+        if (unit == null || unit.isEmpty()) unit = null;
 
         Stock stock = new Stock(
                 productName,
