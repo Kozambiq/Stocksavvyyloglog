@@ -1,11 +1,6 @@
 package com.savvy.stocksavvyyloglog.app;
 
 import com.savvy.stocksavvyyloglog.util.DatabaseConnection;
-import com.savvy.stocksavvyyloglog.controller.NewSaleController;
-import com.savvy.stocksavvyyloglog.dialog.AddCustomerDialog;
-import com.savvy.stocksavvyyloglog.dialog.AddScheduleDialog;
-import com.savvy.stocksavvyyloglog.dialog.AddStockDialog;
-import com.savvy.stocksavvyyloglog.dialog.NewOrderDialog;
 import com.savvy.stocksavvyyloglog.view.CalendarView;
 import com.savvy.stocksavvyyloglog.view.InventoryView;
 import com.savvy.stocksavvyyloglog.view.SalesViewEnhanced;
@@ -301,7 +296,6 @@ public class DashboardApplication {
 
         content.getChildren().add(createWelcomeSection());
         content.getChildren().add(createStatCards());
-        content.getChildren().add(createQuickActions());
 
         HBox bottomRow = new HBox(16);
         bottomRow.setMaxWidth(Double.MAX_VALUE);
@@ -593,68 +587,6 @@ public class DashboardApplication {
         popup.showAndWait();
     }
 
-    // ── Quick actions ─────────────────────────────────────────────────────────
-    private VBox createQuickActions() {
-        VBox section = new VBox(12);
-        section.setPadding(new Insets(16, 20, 16, 20));
-        section.setStyle(
-                "-fx-background-color: " + cardBg() + "; " +
-                        "-fx-border-color: " + border() + "; -fx-border-width: 1; " +
-                        "-fx-background-radius: 8; -fx-border-radius: 8;"
-        );
-
-        Label title = new Label("Quick Actions");
-        title.setStyle(
-                "-fx-font-family: Sans Serif; -fx-font-size: 13px; " +
-                        "-fx-font-weight: bold; -fx-text-fill: " + accent() + ";"
-        );
-
-        HBox actions = new HBox(12);
-        actions.setAlignment(Pos.CENTER_LEFT);
-
-        Button addStockBtn = createActionButton("\uD83D\uDCE6  Add Stock", "#C04A10", "#E8530A");
-        addStockBtn.setOnAction(e -> new AddStockDialog().show(stage));
-
-        Button newSaleBtn = createActionButton("\uD83D\uDCB5  New Sale", "#4A7C4E", "#3A6040");
-        newSaleBtn.setOnAction(e -> new NewSaleController(stage).show());
-
-        Button newOrderBtn = createActionButton("\uD83D\uDCCB  New Order", "#C8A96E", "#B8996A");
-        newOrderBtn.setOnAction(e -> new NewOrderDialog(stage, false).show());
-
-        Button addCustomerBtn = createActionButton("\uD83D\uDC64  Add Customer", "#5A5A8A", "#4A4A7A");
-        addCustomerBtn.setOnAction(e -> new AddCustomerDialog(stage).show());
-
-        Button addScheduleBtn = createActionButton("\uD83D\uDCC5  Add Schedule", "#8A5A2A", "#7A4A1A");
-        addScheduleBtn.setOnAction(e -> new AddScheduleDialog(stage, currentUser).show());
-
-        actions.getChildren().addAll(addStockBtn, newSaleBtn, newOrderBtn, addCustomerBtn, addScheduleBtn);
-
-        if ("Admin".equals(currentRole)) {
-            Button manageUsersBtn = createActionButton("\uD83D\uDEE1  Manage Users", "#7A3A8A", "#5A2A6A");
-            manageUsersBtn.setOnAction(e -> new UserManagementView(stage, false).show());
-            actions.getChildren().add(manageUsersBtn);
-        }
-
-        section.getChildren().addAll(title, actions);
-        return section;
-    }
-
-    private Button createActionButton(String text, String bgColor, String hoverColor) {
-        Button btn = new Button(text);
-        String base  = buildActionStyle(bgColor);
-        String hover = buildActionStyle(hoverColor);
-        btn.setStyle(base);
-        btn.setOnMouseEntered(e -> btn.setStyle(hover));
-        btn.setOnMouseExited(e  -> btn.setStyle(base));
-        return btn;
-    }
-
-    private String buildActionStyle(String bgColor) {
-        return "-fx-font-family: Sans Serif; -fx-font-size: 12px; -fx-text-fill: white; " +
-                "-fx-background-color: " + bgColor + "; -fx-background-radius: 6; " +
-                "-fx-cursor: hand; -fx-padding: 8px 18px;";
-    }
-
     // ── Right panel (Recent Activity + Low Stock list) ────────────────────────
     private VBox createRightPanel() {
         VBox panel = new VBox(14);
@@ -759,7 +691,7 @@ public class DashboardApplication {
 
         HBox lowStockHeader = new HBox(8);
         lowStockHeader.setAlignment(Pos.CENTER_LEFT);
-        Label lowStockTitle = new Label("\uD83D\uDD34  Low Stock");
+        Label lowStockTitle = new Label("\uD83D\uDD34  Stock Overview");
         lowStockTitle.setStyle("-fx-font-family: Sans Serif; -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #B85C00;");
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
