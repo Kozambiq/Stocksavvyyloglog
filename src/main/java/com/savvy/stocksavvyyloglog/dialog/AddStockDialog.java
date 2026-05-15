@@ -95,6 +95,8 @@ public class AddStockDialog {
     private HBox             successBanner;
     private Label            errProduct;
     private Label            errQty;
+    private Label            errCost;
+    private Label            errLowStock;
 
     private final StockDAO stockDAO = new StockDAO();
     private final Stage    dialog   = new Stage();
@@ -290,6 +292,7 @@ public class AddStockDialog {
         tfQuantity.textProperty().addListener((o, ov, nv) -> {
             updatePreview();
             clearError(tfQuantity, errQty);
+            validateLowStock();
         });
 
         cbUnit = new ComboBox<>();
@@ -302,6 +305,8 @@ public class AddStockDialog {
         HBox.setHgrow(tfQuantity, Priority.ALWAYS);
 
         errQty = errorLabel("Enter a valid quantity.");
+        errCost = errorLabel("Cost must be at least 1.00");
+        errLowStock = errorLabel("Alert cannot exceed quantity.");
 
         VBox qtyBox = new VBox(5);
         HBox.setHgrow(qtyBox, Priority.ALWAYS);
@@ -310,11 +315,14 @@ public class AddStockDialog {
         tfCostPerUnit = new TextField();
         tfCostPerUnit.setPromptText("0.00");
         styleInput(tfCostPerUnit);
-        tfCostPerUnit.textProperty().addListener((o, ov, nv) -> updatePreview());
+        tfCostPerUnit.textProperty().addListener((o, ov, nv) -> {
+            updatePreview();
+            validateCost();
+        });
 
         VBox costBox = new VBox(5);
         HBox.setHgrow(costBox, Priority.ALWAYS);
-        costBox.getChildren().addAll(fieldLabel("Cost per Unit (\u20B1)"), tfCostPerUnit);
+        costBox.getChildren().addAll(fieldLabel("Cost per Unit (\u20B1)"), tfCostPerUnit, errCost);
 
         HBox row = new HBox(12, qtyBox, costBox);
         row.setMaxWidth(Double.MAX_VALUE);
@@ -379,10 +387,11 @@ public class AddStockDialog {
         tfLowStockThreshold = new TextField("5");
         tfLowStockThreshold.setPromptText("e.g. 5");
         styleInput(tfLowStockThreshold);
+        tfLowStockThreshold.textProperty().addListener((o, ov, nv) -> validateLowStock());
 
         VBox thresholdBox = new VBox(5);
         HBox.setHgrow(thresholdBox, Priority.ALWAYS);
-        thresholdBox.getChildren().addAll(fieldLabel("Low Stock Alert At"), tfLowStockThreshold);
+        thresholdBox.getChildren().addAll(fieldLabel("Low Stock Alert At"), tfLowStockThreshold, errLowStock);
 
         HBox row = new HBox(12, expiryBox, thresholdBox);
         row.setMaxWidth(Double.MAX_VALUE);
@@ -488,6 +497,7 @@ public class AddStockDialog {
 
             setVisible(successBanner, true);
             clearForm();
+            if (onSaved != null) onSaved.run(); // Ensure Inventory list refreshes
             Timeline hide = new Timeline(new KeyFrame(Duration.seconds(2),
                     e -> setVisible(successBanner, false)));
             hide.play();
@@ -541,6 +551,9 @@ public class AddStockDialog {
 
     // ── Validate ──────────────────────────────────────────────────────────────
     private boolean validateInputs() {
+        validateCost();
+        validateLowStock();
+
         boolean valid = true;
 
         String productVal = tfProductName.getText().trim();
@@ -555,6 +568,10 @@ public class AddStockDialog {
             clearError(tfQuantity, errQty);
         } catch (NumberFormatException e) {
             showError(tfQuantity, errQty);
+            valid = false;
+        }
+
+        if (errCost.isVisible() || errLowStock.isVisible()) {
             valid = false;
         }
 
@@ -599,6 +616,8 @@ public class AddStockDialog {
         setVisible(previewBox, false);
         clearError(tfProductName, errProduct);
         clearError(tfQuantity, errQty);
+        clearError(tfCostPerUnit, errCost);
+        clearError(tfLowStockThreshold, errLowStock);
     }
 
     // ── UI Helpers ────────────────────────────────────────────────────────────
@@ -713,6 +732,51 @@ public class AddStockDialog {
     private void clearError(Control control, Label errLabel) {
         styleInput(control);
         setVisible(errLabel, false);
+    }
+
+    private void validateCost() {
+        try {
+            String val = tfCostPerUnit.getText().trim();
+            if (val.isEmpty()) {
+                clearError(tfCostPerUnit, errCost);
+                return;
+            }
+            double cost = Double.parseDouble(val);
+            if (cost < 1) {
+                errCost.setText("Cost must be at least 1.00");
+                showError(tfCostPerUnit, errCost);
+            } else {
+                clearError(tfCostPerUnit, errCost);
+            }
+        } catch (NumberFormatException e) {
+            errCost.setText("Invalid cost amount.");
+            showError(tfCostPerUnit, errCost);
+        }
+    }
+
+    private void validateLowStock() {
+        try {
+            String qtyStr = tfQuantity.getText().trim();
+            String thrStr = tfLowStockThreshold.getText().trim();
+
+            if (qtyStr.isEmpty() || thrStr.isEmpty()) {
+                clearError(tfLowStockThreshold, errLowStock);
+                return;
+            }
+
+            double qty = Double.parseDouble(qtyStr);
+            double threshold = Double.parseDouble(thrStr);
+
+            if (threshold > qty) {
+                errLowStock.setText("Alert cannot exceed quantity.");
+                showError(tfLowStockThreshold, errLowStock);
+            } else {
+                clearError(tfLowStockThreshold, errLowStock);
+            }
+        } catch (NumberFormatException e) {
+            errLowStock.setText("Invalid threshold number.");
+            showError(tfLowStockThreshold, errLowStock);
+        }
     }
 
     private void setVisible(javafx.scene.Node node, boolean visible) {
