@@ -128,6 +128,9 @@ public class NewSaleController {
 
         RadioButton selected = (RadioButton) view.paymentGroup.getSelectedToggle();
         if (selected != null) model.setPaymentMethod(selected.getText());
+        
+        // Handle Order Type
+        model.setOrderType(view.cbOrderType.getValue());
     }
 
     // ── Save to database ──────────────────────────────────────────────────────
@@ -143,6 +146,7 @@ public class NewSaleController {
                 model.getUnitPrice(),
                 model.getDiscountPercent(),
                 model.getPaymentMethod(),
+                model.getOrderType(),
                 saleDate,
                 model.getNotes(),
                 soldBy

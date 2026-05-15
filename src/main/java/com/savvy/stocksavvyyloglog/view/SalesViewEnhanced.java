@@ -261,7 +261,20 @@ public class SalesViewEnhanced {
         TableColumn<SaleRow, String> colPrice    = strCol("Unit Price",     110, r -> String.format("₱%.2f", r.unitPrice));
         TableColumn<SaleRow, String> colTotal    = strCol("Total",          120, r -> String.format("₱%.2f", r.totalAmount));
         TableColumn<SaleRow, String> colPayment  = strCol("Payment",        110, r -> r.paymentMethod);
+        TableColumn<SaleRow, String> colType     = strCol("Order Type",     110, r -> r.orderType);
         TableColumn<SaleRow, String> colSoldBy   = strCol("Sold By",        100, r -> r.soldBy);
+
+        // Order type color badge
+        colType.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) { setText(null); setGraphic(null); return; }
+                String icon = "pickup".equalsIgnoreCase(item) ? "\uD83D\uDED2" : "\uD83D\uDE9A";
+                setText(icon + " " + item.substring(0, 1).toUpperCase() + item.substring(1));
+                setStyle("-fx-text-fill: " + ("pickup".equalsIgnoreCase(item) ? "#5A5A8A" : "#C04A10") + "; -fx-font-weight: bold;");
+            }
+        });
 
         // Payment method color badge
         colPayment.setCellFactory(col -> new TableCell<>() {
@@ -294,7 +307,7 @@ public class SalesViewEnhanced {
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
                 if (empty) { setText(null); setGraphic(null); setStyle(""); return; }
-                Label badge = new Label("✅ Completed");
+                Label badge = new Label("\u2705 Completed");
                 badge.setStyle(
                         "-fx-background-color: #E8F5E9; " +
                                 "-fx-text-fill: #4A7C4E; " +
@@ -310,7 +323,7 @@ public class SalesViewEnhanced {
 
         table.getColumns().addAll(
                 colId, colDate, colCustomer, colProduct,
-                colQty, colPrice, colTotal, colPayment, colSoldBy, colStatus
+                colQty, colPrice, colTotal, colPayment, colType, colSoldBy, colStatus
         );
 
         allRows      = FXCollections.observableArrayList();

@@ -70,12 +70,14 @@ public class NewSaleView {
     // ── Form fields (public for controller access across packages) ────────────
     public ComboBox<String> cbCustomerName;
     public ComboBox<String> cbProduct;
+    public ComboBox<String> cbOrderType;
     public TextField        tfQuantity;
     public TextField        tfUnitPrice;
     public TextField        tfDiscount;
     public ToggleGroup      paymentGroup;
     public RadioButton      rbCash, rbGCash, rbBankTransfer, rbCredit;
     public DatePicker       dpDeliveryDate;
+    public Label            lblDeliveryDate;
     public TextArea         taNotes;
 
     public Label            lblPreview;
@@ -84,6 +86,7 @@ public class NewSaleView {
     public Label            errCustomer;
     public Label            errProduct;
     public Label            errPrice;
+    public Label            errOrderType;
 
     public Label            totalLabel;
 
@@ -202,7 +205,8 @@ public class NewSaleView {
                 buildPriceRow(),
                 buildPreviewBox(),
                 separator(),
-                sectionLabel("PAYMENT & DELIVERY"),
+                sectionLabel("ORDER & PAYMENT"),
+                buildOrderTypeRow(),
                 buildPaymentRow(),
                 buildDeliveryRow(),
                 separator(),
@@ -346,13 +350,14 @@ public class NewSaleView {
 
     // ── Delivery Row ──────────────────────────────────────────────────────────
     private HBox buildDeliveryRow() {
+        lblDeliveryDate = fieldLabel("Delivery Date");
         dpDeliveryDate = new DatePicker(LocalDate.now());
         dpDeliveryDate.setMaxWidth(Double.MAX_VALUE);
         styleInput(dpDeliveryDate);
 
         VBox dateBox = new VBox(5);
         HBox.setHgrow(dateBox, Priority.ALWAYS);
-        dateBox.getChildren().addAll(fieldLabel("Delivery Date"), dpDeliveryDate);
+        dateBox.getChildren().addAll(lblDeliveryDate, dpDeliveryDate);
 
         totalLabel = new Label("Total: \u20B10.00");
         totalLabel.setStyle(
@@ -369,6 +374,29 @@ public class NewSaleView {
         row.setMaxWidth(Double.MAX_VALUE);
         row.setAlignment(Pos.BOTTOM_LEFT);
         return row;
+    }
+
+    private VBox buildOrderTypeRow() {
+        cbOrderType = new ComboBox<>();
+        cbOrderType.getItems().addAll("pickup", "deliver");
+        cbOrderType.setValue("pickup");
+        cbOrderType.setMaxWidth(Double.MAX_VALUE);
+        styleInput(cbOrderType);
+        
+        cbOrderType.valueProperty().addListener((o, ov, nv) -> {
+            if ("pickup".equals(nv)) {
+                lblDeliveryDate.setText("Pick-up Date");
+            } else {
+                lblDeliveryDate.setText("Delivery Date");
+            }
+            clearError(cbOrderType, errOrderType);
+        });
+
+        errOrderType = errorLabel("Please select order type.");
+
+        VBox box = new VBox(5);
+        box.getChildren().addAll(fieldLabel("Order Type *"), cbOrderType, errOrderType);
+        return box;
     }
 
     // ── Notes Row ─────────────────────────────────────────────────────────────
@@ -463,6 +491,11 @@ public class NewSaleView {
             valid = false;
         }
 
+        if (cbOrderType.getValue() == null) {
+            showError(cbOrderType, errOrderType);
+            valid = false;
+        }
+
         try {
             double price = Double.parseDouble(tfUnitPrice.getText().trim());
             if (price <= 0) throw new NumberFormatException();
@@ -479,6 +512,7 @@ public class NewSaleView {
     public void clearForm() {
         cbCustomerName.setValue(null);
         cbProduct.setValue(null);
+        cbOrderType.setValue("pickup");
         tfQuantity.setText("1");
         tfUnitPrice.clear();
         tfDiscount.clear();
@@ -489,6 +523,7 @@ public class NewSaleView {
         setVisible(previewBox, false);
         clearError(cbCustomerName, errCustomer);
         clearError(cbProduct, errProduct);
+        clearError(cbOrderType, errOrderType);
         clearError(tfUnitPrice, errPrice);
     }
 

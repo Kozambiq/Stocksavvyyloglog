@@ -35,6 +35,7 @@ public class SaleDAO {
         public double subtotal;
         public double totalAmount;
         public String paymentMethod;
+        public String orderType;
         public String status;
         public String notes;
         public String soldBy;
@@ -57,7 +58,7 @@ public class SaleDAO {
     // ── CREATE: insert a sale + its items + deduct stock ─────────────────────
     public boolean recordSale(String customerName, String productName,
                               int quantity, double unitPrice, double discount,
-                              String paymentMethod, String saleDate,
+                              String paymentMethod, String orderType, String saleDate,
                               String notes, String soldBy) {
         Connection conn = null;
         try {
@@ -79,15 +80,16 @@ public class SaleDAO {
 
             // 5. Insert into sales FIRST (parent row must exist before sales_items)
             String insertSale =
-                    "INSERT INTO sales (customer_id, sale_date, total_amount, payment_method, sold_by) " +
-                            "VALUES (?, ?, ?, ?, ?)";
+                    "INSERT INTO sales (customer_id, sale_date, total_amount, payment_method, order_type, sold_by) " +
+                            "VALUES (?, ?, ?, ?, ?, ?)";
             int saleId;
             try (PreparedStatement ps = conn.prepareStatement(insertSale, Statement.RETURN_GENERATED_KEYS)) {
                 ps.setInt   (1, customerId);
                 ps.setString(2, saleDate);
                 ps.setDouble(3, totalAmount);
                 ps.setString(4, paymentMethod);
-                ps.setInt   (5, userId);
+                ps.setString(5, orderType);
+                ps.setInt   (6, userId);
                 ps.executeUpdate();
                 ResultSet keys = ps.getGeneratedKeys();
                 if (!keys.next()) throw new SQLException("Failed to get generated sale ID.");
@@ -166,6 +168,7 @@ public class SaleDAO {
                         "       COALESCE(si.subtotal, 0) AS subtotal, " +
                         "       s.total_amount, " +
                         "       COALESCE(s.payment_method, 'Cash') AS payment_method, " +
+                        "       COALESCE(s.order_type, 'pickup') AS order_type, " +
                         "       COALESCE(u.username, '') AS sold_by " +
                         "FROM sales s " +
                         "LEFT JOIN customers c    ON s.customer_id  = c.id " +
@@ -189,6 +192,7 @@ public class SaleDAO {
                 row.subtotal      = rs.getDouble("subtotal");
                 row.totalAmount   = rs.getDouble("total_amount");
                 row.paymentMethod = rs.getString("payment_method");
+                row.orderType     = rs.getString("order_type");
                 row.soldBy        = rs.getString("sold_by");
                 list.add(row);
             }
@@ -210,6 +214,7 @@ public class SaleDAO {
                         "       COALESCE(si.subtotal, 0) AS subtotal, " +
                         "       s.total_amount, " +
                         "       COALESCE(s.payment_method, 'Cash') AS payment_method, " +
+                        "       COALESCE(s.order_type, 'pickup') AS order_type, " +
                         "       COALESCE(u.username, '') AS sold_by " +
                         "FROM sales s " +
                         "LEFT JOIN customers c    ON s.customer_id  = c.id " +
@@ -235,6 +240,7 @@ public class SaleDAO {
                 row.subtotal      = rs.getDouble("subtotal");
                 row.totalAmount   = rs.getDouble("total_amount");
                 row.paymentMethod = rs.getString("payment_method");
+                row.orderType     = rs.getString("order_type");
                 row.soldBy        = rs.getString("sold_by");
                 list.add(row);
             }

@@ -15,6 +15,7 @@ public class NewSaleModel {
     private double    unitPrice;
     private double    discountPercent;
     private String    paymentMethod;
+    private String    orderType;
     private LocalDate deliveryDate;
     private String    notes;
 
@@ -24,18 +25,21 @@ public class NewSaleModel {
         this.quantity        = 1;
         this.discountPercent = 0.0;
         this.paymentMethod   = "Cash";
+        this.orderType       = "pickup";
         this.deliveryDate    = LocalDate.now();
     }
 
     public NewSaleModel(String customerName, String product, int quantity,
                         double unitPrice, double discountPercent,
-                        String paymentMethod, LocalDate deliveryDate, String notes) {
+                        String paymentMethod, String orderType,
+                        LocalDate deliveryDate, String notes) {
         this.customerName    = customerName;
         this.product         = product;
         this.quantity        = quantity;
         this.unitPrice       = unitPrice;
         this.discountPercent = discountPercent;
         this.paymentMethod   = paymentMethod;
+        this.orderType       = orderType;
         this.deliveryDate    = deliveryDate;
         this.notes           = notes;
     }
@@ -56,6 +60,8 @@ public class NewSaleModel {
             errors.append("• Please select a product.\n");
         if (unitPrice <= 0)
             errors.append("• Unit price must be greater than zero.\n");
+        if (orderType == null || orderType.trim().isEmpty())
+            errors.append("• Order type is required.\n");
         return errors.toString();
     }
 
@@ -82,6 +88,9 @@ public class NewSaleModel {
     public String    getPaymentMethod()              { return paymentMethod; }
     public void      setPaymentMethod(String v)      { this.paymentMethod = v; }
 
+    public String    getOrderType()                  { return orderType; }
+    public void      setOrderType(String v)          { this.orderType = v; }
+
     public LocalDate getDeliveryDate()               { return deliveryDate; }
     public void      setDeliveryDate(LocalDate v)    { this.deliveryDate = v; }
 
@@ -92,9 +101,9 @@ public class NewSaleModel {
     public String toString() {
         return String.format(
                 "Sale{customer='%s', product='%s', qty=%d, price=₱%.2f, " +
-                        "discount=%.1f%%, payment='%s', delivery=%s, total=₱%.2f}",
+                        "discount=%.1f%%, payment='%s', type='%s', delivery=%s, total=₱%.2f}",
                 customerName, product, quantity, unitPrice,
-                discountPercent, paymentMethod, deliveryDate, getTotal()
+                discountPercent, paymentMethod, orderType, deliveryDate, getTotal()
         );
     }
 }

@@ -168,15 +168,9 @@ public class DashboardApplication {
         signOutBtn.setOnAction(e -> signOut());
 
         // ── Right nav buttons ────────────────────────────────────────────────
-        Button salesOrderBtn = createNavButton("Sales Order", false);
         Button receiptsBtn   = createNavButton("Receipts",    false);
         Button calendarBtn   = createNavButton("Calendar",    false);
         Button reportsBtn    = createNavButton("Reports",     false);
-
-        // Wire up Sales Order
-        salesOrderBtn.setOnAction(e ->
-                new SalesOrderView(stage, root, currentUser, currentRole).show()
-        );
 
         // ── Wire up Calendar → CalendarView ──────────────────────────────────
         calendarBtn.setOnAction(e ->
@@ -187,7 +181,6 @@ public class DashboardApplication {
         rightNav.setAlignment(Pos.CENTER_RIGHT);
         rightNav.setPadding(new Insets(0, 24, 0, 0));
         rightNav.getChildren().addAll(
-                salesOrderBtn,
                 receiptsBtn,
                 calendarBtn,
                 reportsBtn,

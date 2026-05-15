@@ -70,6 +70,20 @@ Product catalog for sales.
 
 ---
 
+### customers
+
+Customer records for sales.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | INT | PRIMARY KEY, AUTO_INCREMENT |
+| `name` | VARCHAR(100) | NOT NULL |
+| `phone` | VARCHAR(20) | NULL |
+| `address` | TEXT | NULL |
+| `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP |
+
+---
+
 ### sales
 
 Sales transactions.
@@ -77,10 +91,14 @@ Sales transactions.
 | Column | Type | Constraints |
 |--------|------|-------------|
 | `id` | INT | PRIMARY KEY, AUTO_INCREMENT |
+| `customer_id` | INT | FOREIGN KEY → customers(id) |
 | `sale_date` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP |
 | `total_amount` | DOUBLE | DEFAULT 0 |
-| `customer_name` | VARCHAR(100) | NULL |
-| `created_by` | VARCHAR(50) | NULL |
+| `payment_method` | VARCHAR(50) | DEFAULT 'Cash' |
+| `sold_by` | INT | FOREIGN KEY → users(id) |
+| `status` | VARCHAR(20) | DEFAULT 'Completed' |
+| `order_type` | ENUM('pickup', 'deliver') | DEFAULT 'pickup' |
+| `notes` | TEXT | NULL |
 
 ---
 
@@ -91,10 +109,11 @@ Line items for each sale.
 | Column | Type | Constraints |
 |--------|------|-------------|
 | `id` | INT | PRIMARY KEY, AUTO_INCREMENT |
-| `sale_id` | INT | FOREIGN KEY → sales(id) |
+| `sale_id` | INT | FOREIGN KEY → sales(id), ON DELETE CASCADE |
 | `product_id` | INT | FOREIGN KEY → products(id) |
-| `quantity` | INT | NOT NULL |
-| `price_per_unit` | DOUBLE | NOT NULL |
+| `quantity` | DOUBLE | NOT NULL |
+| `unit_price` | DOUBLE | NOT NULL |
+| `subtotal` | DOUBLE | DEFAULT 0 |
 
 ---
 
@@ -183,21 +202,36 @@ CREATE TABLE products (
     price DOUBLE DEFAULT 0
 );
 
+CREATE TABLE customers (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    phone VARCHAR(20),
+    address TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE sales (
     id INT AUTO_INCREMENT PRIMARY KEY,
+    customer_id INT,
     sale_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     total_amount DOUBLE DEFAULT 0,
-    customer_name VARCHAR(100),
-    created_by VARCHAR(50)
+    payment_method VARCHAR(50) DEFAULT 'Cash',
+    sold_by INT,
+    status VARCHAR(20) DEFAULT 'Completed',
+    order_type ENUM('pickup', 'deliver') DEFAULT 'pickup',
+    notes TEXT,
+    FOREIGN KEY (customer_id) REFERENCES customers(id),
+    FOREIGN KEY (sold_by) REFERENCES users(id)
 );
 
 CREATE TABLE sales_items (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    sale_id INT,
-    product_id INT,
-    quantity INT,
-    price_per_unit DOUBLE,
-    FOREIGN KEY (sale_id) REFERENCES sales(id),
+    sale_id INT NOT NULL,
+    product_id INT NOT NULL,
+    quantity DOUBLE NOT NULL,
+    unit_price DOUBLE NOT NULL,
+    subtotal DOUBLE DEFAULT 0,
+    FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES products(id)
 );
 
@@ -243,4 +277,39 @@ DB_PORT=3306
 DB_NAME=stocksavvy
 DB_USER=root
 DB_PASSWORD=your_password_here
+```
+
+---
+
+## ALTER Scripts (for existing database)
+
+Run these to update your existing tables:
+
+```sql
+-- 1. Create customers table (new)
+CREATE TABLE IF NOT EXISTS customers (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    phone VARCHAR(20),
+    address TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. Update sales table
+ALTER TABLE sales
+    ADD COLUMN customer_id INT,
+    ADD COLUMN payment_method VARCHAR(50) DEFAULT 'Cash',
+    ADD COLUMN sold_by INT,
+    ADD COLUMN status VARCHAR(20) DEFAULT 'Completed',
+    ADD COLUMN order_type ENUM('pickup', 'deliver') DEFAULT 'pickup',
+    ADD COLUMN notes TEXT;
+
+ALTER TABLE sales
+    ADD FOREIGN KEY (customer_id) REFERENCES customers(id),
+    ADD FOREIGN KEY (sold_by) REFERENCES users(id);
+
+-- 3. Update sales_items table
+ALTER TABLE sales_items
+    ADD COLUMN unit_price DOUBLE NOT NULL AFTER quantity,
+    ADD COLUMN subtotal DOUBLE DEFAULT 0 AFTER unit_price;
 ```
