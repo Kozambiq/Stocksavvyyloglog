@@ -282,21 +282,20 @@ public class StockInDialog {
 
         try (Connection conn = DatabaseConnection.getConnection()) {
 
-            // FIX: stock_in log wrapped separately — won't block the quantity update if table schema differs
+            // Log to stock_in_log table
             try {
                 PreparedStatement ins = conn.prepareStatement(
-                        "INSERT INTO stock_in (stock_id, product_name, quantity_in, unit, supplier, date_in, notes) " +
-                                "VALUES (?, ?, ?, ?, ?, ?, ?)");
-                ins.setInt(1, row.getId());
-                ins.setString(2, row.getProductName());
-                ins.setDouble(3, qty);
-                ins.setString(4, tfUnit.getText().trim());
-                ins.setString(5, tfSupplier.getText().trim());
-                ins.setString(6, dateStr);
-                ins.setString(7, taNotes.getText().trim());
+                        "INSERT INTO stock_in_log (product_name, quantity, supplier_name, created_at, unit, notes) " +
+                                "VALUES (?, ?, ?, ?, ?, ?)");
+                ins.setString(1, row.getProductName());
+                ins.setDouble(2, qty);
+                ins.setString(3, tfSupplier.getText().trim());
+                ins.setString(4, dateStr);
+                ins.setString(5, tfUnit.getText().trim());
+                ins.setString(6, taNotes.getText().trim());
                 ins.executeUpdate();
             } catch (Exception logEx) {
-                System.err.println("[StockInDialog] stock_in log skipped: " + logEx.getMessage());
+                System.err.println("[StockInDialog] stock_in_log skipped: " + logEx.getMessage());
             }
 
             // FIX: This is the critical update — always runs

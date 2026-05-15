@@ -221,7 +221,7 @@ public class InventoryView {
         TableColumn<StockRow, String> colUnit     = col("Unit",          "unit",         70);
         TableColumn<StockRow, String> colCost     = col("Cost / Unit",   "costPerUnit",  100);
         TableColumn<StockRow, String> colSupplier = col("Supplier",      "supplier",     130);
-        TableColumn<StockRow, String> colDate     = col("Date Received", "dateReceived", 110);
+        TableColumn<StockRow, String> colDate     = col("Latest Received", "dateReceived", 110);
         TableColumn<StockRow, String> colNotes    = col("Notes",         "notes",        160);
 
         // ── Row factory with selection highlight ──────────────────────────────
@@ -296,8 +296,13 @@ public class InventoryView {
         allRows.clear();
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(
-                     "SELECT id, product_name, category, quantity, unit, " +
-                             "cost_per_unit, supplier, date_received, notes FROM stocks ORDER BY product_name");
+                     "SELECT s.id, s.product_name, s.category, s.quantity, s.unit, " +
+                             "s.cost_per_unit, s.supplier, s.date_received, s.notes, " +
+                             "COALESCE( " +
+                             "  (SELECT MAX(DATE(sil.created_at)) FROM stock_in_log sil WHERE sil.product_name = s.product_name), " +
+                             "  s.date_received " +
+                             ") as latest_received " +
+                             "FROM stocks s ORDER BY s.product_name");
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 double qty = rs.getDouble("quantity");
@@ -309,7 +314,7 @@ public class InventoryView {
                         rs.getString("unit"),
                         rs.getDouble("cost_per_unit"),
                         rs.getString("supplier"),
-                        rs.getString("date_received") != null ? rs.getString("date_received") : "",
+                        rs.getString("latest_received") != null ? rs.getString("latest_received") : "",
                         rs.getString("notes"),
                         qty <= 10
                 ));
