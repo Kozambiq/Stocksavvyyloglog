@@ -1,5 +1,6 @@
 package com.savvy.stocksavvyyloglog.view;
 
+import com.savvy.stocksavvyyloglog.dialog.AddStockDialog;
 import com.savvy.stocksavvyyloglog.dialog.StockInDialog;
 import com.savvy.stocksavvyyloglog.dialog.StockOutDialog;
 import com.savvy.stocksavvyyloglog.util.DatabaseConnection;
@@ -376,7 +377,11 @@ public class InventoryView {
         new InventoryExporter(stage).exportToCSV(visible);
     }
 
-    private void openAddDialog()  { showStockDialog(null); }
+    private void openAddDialog()  { 
+        AddStockDialog dlg = new AddStockDialog();
+        dlg.setOnSaved(() -> { loadData(); refreshCategoryFilter(); });
+        dlg.show(stage);
+    }
 
     private void openEditDialog() {
         StockRow sel = table.getSelectionModel().getSelectedItem();

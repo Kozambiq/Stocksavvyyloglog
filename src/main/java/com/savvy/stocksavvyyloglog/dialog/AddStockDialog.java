@@ -21,6 +21,7 @@ import javafx.util.Duration;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
@@ -97,6 +98,7 @@ public class AddStockDialog {
 
     private final StockDAO stockDAO = new StockDAO();
     private final Stage    dialog   = new Stage();
+    private Runnable       onSaved;
 
     // ── Constructors ──────────────────────────────────────────────────────────
     public AddStockDialog() {
@@ -105,6 +107,10 @@ public class AddStockDialog {
 
     public AddStockDialog(boolean darkMode) {
         this.darkMode = darkMode;
+    }
+
+    public void setOnSaved(Runnable onSaved) {
+        this.onSaved = onSaved;
     }
 
     // ── Show ──────────────────────────────────────────────────────────────────
@@ -138,7 +144,29 @@ public class AddStockDialog {
         tt.setFromY(18); tt.setToY(0);
         ft.play(); tt.play();
 
+        loadDropdownValues();
+
         dialog.show();
+    }
+
+    private void loadDropdownValues() {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            PreparedStatement psCat = conn.prepareStatement(
+                    "SELECT DISTINCT category FROM stocks WHERE category IS NOT NULL AND category != '' ORDER BY category");
+            ResultSet rsCat = psCat.executeQuery();
+            while (rsCat.next()) {
+                cbCategory.getItems().add(rsCat.getString("category"));
+            }
+
+            PreparedStatement psUnit = conn.prepareStatement(
+                    "SELECT DISTINCT unit FROM stocks WHERE unit IS NOT NULL AND unit != '' ORDER BY unit");
+            ResultSet rsUnit = psUnit.executeQuery();
+            while (rsUnit.next()) {
+                cbUnit.getItems().add(rsUnit.getString("unit"));
+            }
+        } catch (Exception e) {
+            System.err.println("[AddStockDialog] Failed to load dropdown values: " + e.getMessage());
+        }
     }
 
     // ── Header ────────────────────────────────────────────────────────────────
@@ -232,7 +260,7 @@ public class AddStockDialog {
                 "Longanisa (Garlic)", "Longanisa (Sweet)",
                 "Tocino", "Tapa", "Longganisang Hamonado"
         );
-        cbProductName.setPromptText("— Select or type product —");
+        cbProductName.setPromptText("\u2014 Select or type product \u2014");
         cbProductName.setMaxWidth(Double.MAX_VALUE);
         styleInput(cbProductName);
         cbProductName.valueProperty().addListener((o, ov, nv) -> {
@@ -248,13 +276,11 @@ public class AddStockDialog {
 
         cbCategory = new ComboBox<>();
         cbCategory.setEditable(true);
-        cbCategory.setPromptText("Enter or select category");
-        cbCategory.setMaxWidth(Double.MAX_VALUE);
-        styleInput(cbCategory);
+        HBox customCategory = createCustomComboBox(cbCategory, "Enter or select category");
 
         VBox categoryBox = new VBox(5);
         HBox.setHgrow(categoryBox, Priority.ALWAYS);
-        categoryBox.getChildren().addAll(fieldLabel("Category"), cbCategory);
+        categoryBox.getChildren().addAll(fieldLabel("Category"), customCategory);
 
         HBox row = new HBox(12, productBox, categoryBox);
         row.setMaxWidth(Double.MAX_VALUE);
@@ -273,12 +299,11 @@ public class AddStockDialog {
 
         cbUnit = new ComboBox<>();
         cbUnit.setEditable(true);
-        cbUnit.setPromptText("Enter unit");
         cbUnit.setPrefWidth(90);
-        styleInput(cbUnit);
+        HBox customUnit = createCustomComboBox(cbUnit, "Unit");
         cbUnit.valueProperty().addListener((o, ov, nv) -> updatePreview());
 
-        HBox qtyInner = new HBox(6, tfQuantity, cbUnit);
+        HBox qtyInner = new HBox(6, tfQuantity, customUnit);
         HBox.setHgrow(tfQuantity, Priority.ALWAYS);
 
         errQty = errorLabel("Enter a valid quantity.");
@@ -436,19 +461,18 @@ public class AddStockDialog {
                 : cbProductName.getValue();
         if (productName == null || productName.isEmpty()) productName = cbProductName.getValue();
 
-        String unit        = cbUnit.getValue();
         double costPerUnit = tfCostPerUnit.getText().trim().isEmpty()
                 ? 0 : Double.parseDouble(tfCostPerUnit.getText().trim());
 
-        String category = cbCategory.isEditable()
-                ? cbCategory.getEditor().getText().trim().toUpperCase()
+        String catVal = cbCategory.isEditable()
+                ? cbCategory.getEditor().getText().trim()
                 : cbCategory.getValue();
-        if (category == null || category.isEmpty()) category = null;
+        String category = (catVal != null && !catVal.isEmpty()) ? catVal.toUpperCase() : null;
 
-        String unit = cbUnit.isEditable()
-                ? cbUnit.getEditor().getText().trim().toUpperCase()
+        String unitVal = cbUnit.isEditable()
+                ? cbUnit.getEditor().getText().trim()
                 : cbUnit.getValue();
-        if (unit == null || unit.isEmpty()) unit = null;
+        String unit = (unitVal != null && !unitVal.isEmpty()) ? unitVal.toUpperCase() : null;
 
         Stock stock = new Stock(
                 productName,
@@ -631,6 +655,69 @@ public class AddStockDialog {
                         "-fx-border-color: " + border() + "; -fx-border-radius: 7; -fx-background-radius: 7; " +
                         "-fx-padding: 7 10; -fx-text-fill: " + text() + ";"
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    private void styleComboBox(ComboBox<String> comboBox) {
+        // Hide default arrow button by making it transparent and zero width
+        comboBox.setStyle(
+                "-fx-font-family: Sans Serif; -fx-font-size: 13px; " +
+                "-fx-background-color: transparent; " +
+                "-fx-border-color: transparent; " +
+                "-fx-padding: 0; -fx-text-fill: " + text() + ";"
+        );
+
+        if (comboBox.isEditable()) {
+            comboBox.getEditor().setStyle(
+                    "-fx-background-color: transparent; " +
+                    "-fx-padding: 7 10; -fx-text-fill: " + text() + ";"
+            );
+        }
+
+        comboBox.setCellFactory(listView -> new javafx.scene.control.ListCell<String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    setText(item);
+                    setTextFill(textColor());
+                    setStyle("-fx-background-color: " + inputBg() + ";");
+                }
+            }
+        });
+    }
+
+    private HBox createCustomComboBox(ComboBox<String> comboBox, String prompt) {
+        comboBox.setPromptText(prompt);
+        styleComboBox(comboBox);
+        comboBox.setMaxWidth(Double.MAX_VALUE);
+
+        Label arrow = new Label("\u25BC");
+        arrow.setStyle("-fx-text-fill: " + textMuted() + "; -fx-font-size: 10px; -fx-cursor: hand; -fx-padding: 0 10 0 0;");
+        arrow.setOnMouseClicked(e -> {
+            if (comboBox.isShowing()) comboBox.hide();
+            else comboBox.show();
+        });
+
+        StackPane wrapper = new StackPane(comboBox, arrow);
+        StackPane.setAlignment(arrow, Pos.CENTER_RIGHT);
+        wrapper.setStyle(
+                "-fx-background-color: " + inputBg() + "; " +
+                "-fx-border-color: " + border() + "; " +
+                "-fx-border-radius: 7; -fx-background-radius: 7;"
+        );
+
+        HBox container = new HBox(wrapper);
+        container.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(wrapper, Priority.ALWAYS);
+        return container;
+    }
+
+    private javafx.scene.paint.Paint textColor() {
+        return darkMode ? javafx.scene.paint.Color.web(D_TEXT) : javafx.scene.paint.Color.web(L_TEXT);
     }
 
     private void showError(Control control, Label errLabel) {
