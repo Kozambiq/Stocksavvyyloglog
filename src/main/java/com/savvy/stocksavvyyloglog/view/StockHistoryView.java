@@ -240,24 +240,21 @@ public class StockHistoryView {
     private void loadData() {
         allRows.clear();
 
-        // FIX: Updated query to match actual DB schema.
-        // - stock_in_log has: product_name, quantity, supplier, notes, created_at
-        // - stock_out has: product_id, quantity, reason, notes, created_at
-        //   (product_id is joined to stocks to get product_name and unit)
+        // Updated query to match stock_in_log and stock_out schemas
         String sql =
                 "SELECT si.created_at AS evt_date, 'IN' AS type, " +
                         "       si.product_name, si.quantity AS qty, " +
-                        "       COALESCE(s.unit, '') AS unit, " +
-                        "       si.supplier AS reference, si.notes " +
+                        "       COALESCE(si.unit, '') AS unit, " +
+                        "       si.supplier_name AS reference, si.notes " +
                         "FROM stock_in_log si " +
                         "LEFT JOIN stocks s ON si.product_name = s.product_name " +
                         "UNION ALL " +
-                        "SELECT so.created_at AS evt_date, 'OUT' AS type, " +
-                        "       s.product_name, so.quantity AS qty, " +
-                        "       COALESCE(s.unit, '') AS unit, " +
+                        "SELECT so.date_out AS evt_date, 'OUT' AS type, " +
+                        "       so.product_name, so.quantity_out AS qty, " +
+                        "       COALESCE(so.unit, '') AS unit, " +
                         "       so.reason AS reference, so.notes " +
                         "FROM stock_out so " +
-                        "LEFT JOIN stocks s ON so.product_id = s.id " +
+                        "LEFT JOIN stocks s ON so.stock_id = s.id " +
                         "ORDER BY evt_date DESC, type";
 
         try (Connection conn = DatabaseConnection.getConnection();

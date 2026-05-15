@@ -109,6 +109,25 @@ Log of stock additions.
 | `quantity` | DOUBLE | NULL |
 | `supplier_name` | VARCHAR(100) | NULL |
 | `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP |
+| `unit` | VARCHAR(20) | NULL |
+| `notes` | TEXT | NULL |
+
+---
+
+### stock_out
+
+Log of stock reductions (stock out events).
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | INT | PRIMARY KEY, AUTO_INCREMENT |
+| `stock_id` | INT | NULL |
+| `product_name` | VARCHAR(100) | NULL |
+| `quantity_out` | DOUBLE | NULL |
+| `unit` | VARCHAR(20) | NULL |
+| `reason` | VARCHAR(100) | NULL |
+| `date_out` | DATE | NULL |
+| `notes` | TEXT | NULL |
 
 ---
 
@@ -187,7 +206,20 @@ CREATE TABLE stock_in_log (
     product_name VARCHAR(100),
     quantity DOUBLE,
     supplier_name VARCHAR(100),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    unit VARCHAR(20),
+    notes TEXT
+);
+
+CREATE TABLE stock_out (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    stock_id INT,
+    product_name VARCHAR(100),
+    quantity_out DOUBLE,
+    unit VARCHAR(20),
+    reason VARCHAR(100),
+    date_out DATE,
+    notes TEXT
 );
 
 CREATE TABLE sales_orders (
