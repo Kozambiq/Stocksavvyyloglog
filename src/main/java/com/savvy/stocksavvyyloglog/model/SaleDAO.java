@@ -86,8 +86,8 @@ public class SaleDAO {
 
             // 5. Insert into sales FIRST (parent row must exist before sales_items)
             String insertSale =
-                    "INSERT INTO sales (customer_id, sale_date, total_amount, payment_method, order_type, sold_by, notes) " +
-                            "VALUES (?, ?, ?, ?, ?, ?, ?)";
+                    "INSERT INTO sales (customer_id, sale_date, total_amount, payment_method, order_type, sold_by, notes, status) " +
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, 'Complete')";
             int saleId;
             try (PreparedStatement ps = conn.prepareStatement(insertSale, Statement.RETURN_GENERATED_KEYS)) {
                 ps.setInt   (1, customerId);
@@ -175,6 +175,7 @@ public class SaleDAO {
                         "       s.total_amount, " +
                         "       COALESCE(s.payment_method, 'Cash') AS payment_method, " +
                         "       COALESCE(s.order_type, 'pickup') AS order_type, " +
+                        "       COALESCE(s.status, 'Complete') AS status, " +
                         "       COALESCE(u.username, '') AS sold_by " +
                         "FROM sales s " +
                         "LEFT JOIN customers c    ON s.customer_id  = c.id " +
@@ -199,6 +200,7 @@ public class SaleDAO {
                 row.totalAmount   = rs.getDouble("total_amount");
                 row.paymentMethod = rs.getString("payment_method");
                 row.orderType     = rs.getString("order_type");
+                row.status        = rs.getString("status");
                 row.soldBy        = rs.getString("sold_by");
                 list.add(row);
             }
@@ -221,6 +223,7 @@ public class SaleDAO {
                         "       s.total_amount, " +
                         "       COALESCE(s.payment_method, 'Cash') AS payment_method, " +
                         "       COALESCE(s.order_type, 'pickup') AS order_type, " +
+                        "       COALESCE(s.status, 'Complete') AS status, " +
                         "       COALESCE(u.username, '') AS sold_by " +
                         "FROM sales s " +
                         "LEFT JOIN customers c    ON s.customer_id  = c.id " +
@@ -247,6 +250,7 @@ public class SaleDAO {
                 row.totalAmount   = rs.getDouble("total_amount");
                 row.paymentMethod = rs.getString("payment_method");
                 row.orderType     = rs.getString("order_type");
+                row.status        = rs.getString("status");
                 row.soldBy        = rs.getString("sold_by");
                 list.add(row);
             }
@@ -254,6 +258,19 @@ public class SaleDAO {
             System.err.println("[SaleDAO] getSalesByDateRange failed: " + e.getMessage());
         }
         return list;
+    }
+
+    public boolean updateStatus(int saleId, String status) {
+        String sql = "UPDATE sales SET status = ? WHERE id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, status);
+            ps.setInt(2, saleId);
+            return ps.executeUpdate() > 0;
+        } catch (Exception e) {
+            System.err.println("[SaleDAO] updateStatus failed: " + e.getMessage());
+            return false;
+        }
     }
 
     // ── READ: summary stats ───────────────────────────────────────────────────

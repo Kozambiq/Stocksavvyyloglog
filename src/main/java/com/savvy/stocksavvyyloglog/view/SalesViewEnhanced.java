@@ -16,6 +16,8 @@ import javafx.stage.Stage;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class SalesViewEnhanced {
@@ -185,11 +187,11 @@ public class SalesViewEnhanced {
 
         // ── NEW: Status filter dropdown ───────────────────────────────────────
         statusFilter = new ComboBox<>();
-        statusFilter.getItems().addAll("All", "Completed");
+        statusFilter.getItems().addAll("All", "Complete", "Preparing", "Out for Delivery", "Ready for Pickup");
         statusFilter.setValue("All");
-        statusFilter.setPrefWidth(120);
+        statusFilter.setPrefWidth(140);
         statusFilter.setStyle("-fx-font-family: Sans Serif; -fx-font-size: 12px;");
-        statusFilter.valueProperty().addListener((obs, o, n) -> applyFilter());
+        // Filter on button press, not automatically
 
         Button filterBtn = actionBtn("🔍  Filter", "#5A5A8A", "#4A4A7A");
         filterBtn.setOnAction(e -> applyFilter());
@@ -301,19 +303,34 @@ public class SalesViewEnhanced {
 
         // ── NEW: Status column ────────────────────────────────────────────────
         TableColumn<SaleRow, String> colStatus = new TableColumn<>("Status");
-        colStatus.setMinWidth(110);
+        colStatus.setMinWidth(130);
+        colStatus.setCellValueFactory(cd -> new SimpleStringProperty(cd.getValue().status));
         colStatus.setCellFactory(col -> new TableCell<>() {
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
-                if (empty) { setText(null); setGraphic(null); setStyle(""); return; }
-                Label badge = new Label("\u2705 Completed");
+                if (empty || item == null) { setText(null); setGraphic(null); setStyle(""); return; }
+                
+                Label badge = new Label(item);
+                String bg, fg;
+                switch (item) {
+                    case "Preparing":
+                        bg = "#FFF9C4"; fg = "#FBC02D"; break;
+                    case "Put for Delivery":
+                    case "Ready for Pickup":
+                        bg = "#E3F2FD"; fg = "#1976D2"; break;
+                    case "Complete":
+                        bg = "#E8F5E9"; fg = "#4A7C4E"; break;
+                    default:
+                        bg = "#F5F5F5"; fg = "#757575"; break;
+                }
+                
                 badge.setStyle(
-                        "-fx-background-color: #E8F5E9; " +
-                                "-fx-text-fill: #4A7C4E; " +
+                        "-fx-background-color: " + bg + "; " +
+                                "-fx-text-fill: " + fg + "; " +
                                 "-fx-font-weight: bold; " +
                                 "-fx-font-size: 11px; " +
-                                "-fx-padding: 3 8; " +
+                                "-fx-padding: 3 10; " +
                                 "-fx-background-radius: 10;"
                 );
                 setGraphic(badge);
@@ -339,6 +356,8 @@ public class SalesViewEnhanced {
                     SaleRow row = getTableView().getItems().get(getIndex());
                     if ("edit".equals(selected)) {
                         openEditSaleDialog(row);
+                    } else if ("change status".equals(selected)) {
+                        openChangeStatusDialog(row);
                     }
                     // Reset selection without triggering listener again
                     javafx.application.Platform.runLater(() -> actions.setValue(null));
@@ -429,11 +448,11 @@ public class SalesViewEnhanced {
                     if (d.isAfter(to)) return false;
                 } catch (Exception ignored) {}
             }
-            // ── NEW: Status filter (all rows are Completed, so "All" = show all) ──
+            // ── NEW: Status filter ───────────────────────────────────────────────
             if (selectedStatus != null && !selectedStatus.equals("All")) {
-                // Since all visible rows are Completed (voided = deleted),
-                // selecting "Completed" shows all rows — no rows are excluded.
-                // This is ready to extend if you add soft-delete later.
+                if (row.status == null || !row.status.equalsIgnoreCase(selectedStatus)) {
+                    return false;
+                }
             }
             // Text search
             if (!search.isEmpty()) {
@@ -496,6 +515,33 @@ public class SalesViewEnhanced {
         } catch (Exception e) {
             showError("Could not open Edit Sale dialog: " + e.getMessage());
         }
+    }
+
+    private void openChangeStatusDialog(SaleRow row) {
+        List<String> choices = new ArrayList<>();
+        if ("deliver".equals(row.orderType)) {
+            choices.addAll(Arrays.asList("Preparing", "Put for Delivery", "Complete"));
+        } else {
+            choices.addAll(Arrays.asList("Preparing", "Ready for Pickup", "Complete"));
+        }
+
+        ChoiceDialog<String> dialog = new ChoiceDialog<>(row.status, choices);
+        dialog.setTitle("Change Status");
+        dialog.setHeaderText("Update status for Sale #" + row.id);
+        dialog.setContentText("Choose new status:");
+        dialog.initOwner(stage);
+
+        // Apply custom styling to the dialog if possible
+        dialog.getDialogPane().setStyle("-fx-font-family: Sans Serif;");
+
+        dialog.showAndWait().ifPresent(newStatus -> {
+            if (dao.updateStatus(row.id, newStatus)) {
+                loadData();
+                showSuccess("Status updated to " + newStatus);
+            } else {
+                showError("Failed to update status in database.");
+            }
+        });
     }
 
     // ── Void (delete) a sale ──────────────────────────────────────────────────
