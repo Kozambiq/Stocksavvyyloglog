@@ -380,6 +380,7 @@ public class SaleDAO {
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private int findOrCreateCustomer(Connection conn, String name) throws SQLException {
+        if (name != null) name = name.trim().toUpperCase();
         String find = "SELECT id FROM customers WHERE name = ? LIMIT 1";
         try (PreparedStatement ps = conn.prepareStatement(find)) {
             ps.setString(1, name);
@@ -407,30 +408,29 @@ public class SaleDAO {
     }
 
     /**
-     * Looks up product ID from productions table first, then products, then stocks.
+     * Looks up or creates a product ID from the products table to satisfy the FK constraint in sales_items.
+     * This method ensures that the product name exists in the products table regardless of its source.
      */
     private int findProductId(Connection conn, String productName) throws SQLException {
-        // Try productions table first
-        String sql0 = "SELECT id FROM productions WHERE name = ? LIMIT 1";
-        try (PreparedStatement ps = conn.prepareStatement(sql0)) {
+        // 1. Try to find the product by name in the products table
+        String sqlFind = "SELECT id FROM products WHERE name = ? LIMIT 1";
+        try (PreparedStatement ps = conn.prepareStatement(sqlFind)) {
             ps.setString(1, productName);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) return rs.getInt(1);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt(1);
+            }
         }
-        // Try products table
-        String sql1 = "SELECT id FROM products WHERE name = ? LIMIT 1";
-        try (PreparedStatement ps = conn.prepareStatement(sql1)) {
+
+        // 2. If not found, create a placeholder entry in the products table to satisfy the FK
+        String sqlInsert = "INSERT INTO products (name) VALUES (?)";
+        try (PreparedStatement ps = conn.prepareStatement(sqlInsert, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, productName);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) return rs.getInt(1);
+            ps.executeUpdate();
+            try (ResultSet rs = ps.getGeneratedKeys()) {
+                if (rs.next()) return rs.getInt(1);
+            }
         }
-        // Try stocks table
-        String sql2 = "SELECT id FROM stocks WHERE product_name = ? LIMIT 1";
-        try (PreparedStatement ps = conn.prepareStatement(sql2)) {
-            ps.setString(1, productName);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) return rs.getInt(1);
-        }
-        throw new SQLException("Product not found: " + productName);
+        
+        throw new SQLException("Could not resolve or create product ID for: " + productName);
     }
 }
