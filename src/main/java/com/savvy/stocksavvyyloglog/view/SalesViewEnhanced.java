@@ -374,6 +374,19 @@ public class SalesViewEnhanced {
             }
         });
 
+        // ── Double click to open receipt ──────────────────────────────────────
+        table.setOnMouseClicked(event -> {
+            if (event.getClickCount() == 2) {
+                SaleRow row = table.getSelectionModel().getSelectedItem();
+                if (row != null) {
+                    com.savvy.stocksavvyyloglog.dialog.ReceiptDialog dialog = 
+                        new com.savvy.stocksavvyyloglog.dialog.ReceiptDialog(stage, row, currentRole);
+                    dialog.setOnVoid(() -> { loadData(); refreshStatCards(); });
+                    dialog.show();
+                }
+            }
+        });
+
         table.getColumns().addAll(
                 colId, colDate, colCustomer, colProduct,
                 colQty, colPrice, colTotal, colPayment, colType, colSoldBy, colStatus, colActions
