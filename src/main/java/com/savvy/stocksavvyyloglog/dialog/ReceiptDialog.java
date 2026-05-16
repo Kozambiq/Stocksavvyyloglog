@@ -95,11 +95,18 @@ public class ReceiptDialog {
 
         actions.getChildren().add(closeBtn);
 
-        if ("Admin".equalsIgnoreCase(userRole) && !"Cancelled".equals(row.status)) {
-            Button voidBtn = new Button("Void Order");
-            voidBtn.setStyle("-fx-font-family: Sans Serif; -fx-background-color: #D32F2F; -fx-text-fill: white; -fx-padding: 8 20; -fx-cursor: hand;");
-            voidBtn.setOnAction(e -> voidOrder());
-            actions.getChildren().add(voidBtn);
+        if ("Admin".equalsIgnoreCase(userRole)) {
+            if ("Cancelled".equals(row.status)) {
+                Button enableBtn = new Button("Enable");
+                enableBtn.setStyle("-fx-font-family: Sans Serif; -fx-background-color: #4A7C4E; -fx-text-fill: white; -fx-padding: 8 20; -fx-cursor: hand;");
+                enableBtn.setOnAction(e -> updateStatus("Preparing"));
+                actions.getChildren().add(enableBtn);
+            } else {
+                Button voidBtn = new Button("Void Order");
+                voidBtn.setStyle("-fx-font-family: Sans Serif; -fx-background-color: #D32F2F; -fx-text-fill: white; -fx-padding: 8 20; -fx-cursor: hand;");
+                voidBtn.setOnAction(e -> updateStatus("Cancelled"));
+                actions.getChildren().add(voidBtn);
+            }
         }
 
         card.getChildren().addAll(title, info, div1, details, div2, actions);
@@ -107,6 +114,20 @@ public class ReceiptDialog {
         
         stage.setScene(new Scene(root));
         stage.showAndWait();
+    }
+
+    private void updateStatus(String status) {
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement("UPDATE sales SET status = ? WHERE id = ?")) {
+            ps.setString(1, status);
+            ps.setInt(2, row.id);
+            ps.executeUpdate();
+            if (onVoid != null) onVoid.run();
+            stage.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+            new Alert(Alert.AlertType.ERROR, "Failed to update order status.").show();
+        }
     }
 
     private HBox infoRow(String label, String value) {
@@ -124,18 +145,5 @@ public class ReceiptDialog {
         div.setPrefHeight(1);
         div.setStyle("-fx-background-color: #E8D8C0;");
         return div;
-    }
-
-    private void voidOrder() {
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement("UPDATE sales SET status = 'Cancelled' WHERE id = ?")) {
-            ps.setInt(1, row.id);
-            ps.executeUpdate();
-            if (onVoid != null) onVoid.run();
-            stage.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-            new Alert(Alert.AlertType.ERROR, "Failed to void order.").show();
-        }
     }
 }

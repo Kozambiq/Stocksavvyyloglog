@@ -215,6 +215,16 @@ public class SalesViewEnhanced {
         Button newSaleBtn = actionBtn("➕  New Sale", L_ACCENT, "#A03A0A");
         newSaleBtn.setOnAction(e -> openNewSaleDialog());
 
+        Button deleteSaleBtn = actionBtn("🗑 Delete Sale", "#D32F2F", "#A02020");
+        deleteSaleBtn.setOnAction(e -> {
+            SaleRow selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                showError("Please select a sale to delete.");
+            } else {
+                confirmVoid(selected);
+            }
+        });
+
         Button exportBtn = actionBtn("📤  Export CSV", L_SUCCESS, "#3A6040");
         exportBtn.setOnAction(e -> exportCSV());
 
@@ -225,7 +235,7 @@ public class SalesViewEnhanced {
                 searchField, fromLbl, dpFrom, toLbl, dpTo,
                 statusFilter,                          // ← NEW
                 filterBtn, clearFilterBtn,
-                spacer, statusLabel, newSaleBtn, exportBtn, refreshBtn
+                spacer, statusLabel, newSaleBtn, deleteSaleBtn, exportBtn, refreshBtn
         );
         return toolbar;
     }

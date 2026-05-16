@@ -314,10 +314,3 @@ ALTER TABLE sales_items
     ADD COLUMN subtotal DOUBLE DEFAULT 0 AFTER unit_price;
 ```
 
-I want you to look at the inventory module, get a grasp of how its designed and its design architecture
-
-i want you to create a new module named "Production Management"
-
-this module will have title, summary cards(Total Products, Low Stock Items, etc)                                                                                                                                           
-it will have searchbar like in inventory module                                                                                                                                                                            
-it will also have a table with the following columns(Produce Name, ) 

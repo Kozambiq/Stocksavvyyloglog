@@ -1,56 +1,46 @@
 package com.savvy.stocksavvyyloglog.model;
 
+/**
+ * Model class representing a Production entry.
+ */
 public class Production {
 
-    private int id;
-    private String batchNumber;
-    private String productName;
-    private double quantityProduced;
+    private int    id;
+    private String name;
+    private double quantity;
+    private double price;
     private String unit;
-    private String productionDate;
-    private String status;
-    private String notes;
+    private String status; // 'No Stock', 'Low Stock', 'In Stock'
     private String createdAt;
 
     public Production() {}
 
-    public Production(int id, String batchNumber, String productName, double quantityProduced,
-                      String unit, String productionDate, String status, String notes, String createdAt) {
-        this.id = id;
-        this.batchNumber = batchNumber;
-        this.productName = productName;
-        this.quantityProduced = quantityProduced;
+    public Production(String name, double quantity, double price, String unit, String status) {
+        this.name = name;
+        this.quantity = quantity;
+        this.price = price;
         this.unit = unit;
-        this.productionDate = productionDate;
         this.status = status;
-        this.notes = notes;
-        this.createdAt = createdAt;
     }
 
-    public int getId() { return id; }
-    public void setId(int id) { this.id = id; }
+    public int    getId()                 { return id; }
+    public void   setId(int id)           { this.id = id; }
 
-    public String getBatchNumber() { return batchNumber; }
-    public void setBatchNumber(String batchNumber) { this.batchNumber = batchNumber; }
+    public String getName()               { return name; }
+    public void   setName(String v)       { this.name = v; }
 
-    public String getProductName() { return productName; }
-    public void setProductName(String productName) { this.productName = productName; }
+    public double getQuantity()           { return quantity; }
+    public void   setQuantity(double v)   { this.quantity = v; }
 
-    public double getQuantityProduced() { return quantityProduced; }
-    public void setQuantityProduced(double quantityProduced) { this.quantityProduced = quantityProduced; }
+    public double getPrice()              { return price; }
+    public void   setPrice(double v)      { this.price = v; }
 
-    public String getUnit() { return unit; }
-    public void setUnit(String unit) { this.unit = unit; }
+    public String getUnit()               { return unit; }
+    public void   setUnit(String v)       { this.unit = v; }
 
-    public String getProductionDate() { return productionDate; }
-    public void setProductionDate(String productionDate) { this.productionDate = productionDate; }
+    public String getStatus()             { return status; }
+    public void   setStatus(String v)     { this.status = v; }
 
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
-
-    public String getNotes() { return notes; }
-    public void setNotes(String notes) { this.notes = notes; }
-
-    public String getCreatedAt() { return createdAt; }
-    public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
+    public String getCreatedAt()          { return createdAt; }
+    public void   setCreatedAt(String v)  { this.createdAt = v; }
 }

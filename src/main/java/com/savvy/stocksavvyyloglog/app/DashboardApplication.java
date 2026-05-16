@@ -117,26 +117,31 @@ public class DashboardApplication {
 
         Button myPageBtn    = createNavButton("MyPage",    true);
         Button inventoryBtn = createNavButton("Inventory", false);
+        Button productionBtn = createNavButton("Production", false);
         Button salesBtn     = createNavButton("Sales",     false);
 
         myPageBtn.setOnAction(e -> {
-            setNavActive(myPageBtn, inventoryBtn, salesBtn);
+            setNavActive(myPageBtn, inventoryBtn, productionBtn, salesBtn);
             root.setCenter(createDashboardContent());
         });
         inventoryBtn.setOnAction(e -> {
-            setNavActive(inventoryBtn, myPageBtn, salesBtn);
+            setNavActive(inventoryBtn, myPageBtn, productionBtn, salesBtn);
             new InventoryView(stage, root).show();
+        });
+        productionBtn.setOnAction(e -> {
+            setNavActive(productionBtn, myPageBtn, inventoryBtn, salesBtn);
+            new com.savvy.stocksavvyyloglog.view.ProductionView(root).show();
         });
 
         salesBtn.setOnAction(e -> {
-            setNavActive(salesBtn, myPageBtn, inventoryBtn);
+            setNavActive(salesBtn, myPageBtn, inventoryBtn, productionBtn);
             new SalesViewEnhanced(stage, root, currentUser, currentRole).show();
         });
 
         HBox leftNav = new HBox(6);
         leftNav.setAlignment(Pos.CENTER_LEFT);
         leftNav.setPadding(new Insets(0, 0, 0, 24));
-        leftNav.getChildren().addAll(myPageBtn, inventoryBtn, salesBtn);
+        leftNav.getChildren().addAll(myPageBtn, inventoryBtn, productionBtn, salesBtn);
 
         if ("Admin".equals(currentRole)) {
             Button usersBtn = createNavButton("\uD83D\uDEE1  Users", false);
