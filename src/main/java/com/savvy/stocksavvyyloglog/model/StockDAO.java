@@ -56,6 +56,21 @@ public class StockDAO {
         return list;
     }
 
+    public List<String> getUniqueSuppliers() {
+        List<String> list = new ArrayList<>();
+        String sql = "SELECT DISTINCT supplier FROM stocks WHERE supplier IS NOT NULL AND supplier != '' ORDER BY supplier";
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                list.add(rs.getString("supplier"));
+            }
+        } catch (Exception e) {
+            System.err.println("[StockDAO] getUniqueSuppliers failed: " + e.getMessage());
+        }
+        return list;
+    }
+
     // ── UPDATE ────────────────────────────────────────────────────────────────
     public boolean updateStock(Stock stock) {
         String sql = "UPDATE stocks SET product_name=?, category=?, quantity=?, unit=?, " +

@@ -1,5 +1,6 @@
 package com.savvy.stocksavvyyloglog.dialog;
 
+import com.savvy.stocksavvyyloglog.model.StockDAO;
 import com.savvy.stocksavvyyloglog.util.DatabaseConnection;
 import com.savvy.stocksavvyyloglog.view.InventoryView;
 import javafx.animation.FadeTransition;
@@ -49,20 +50,23 @@ public class StockInDialog {
     private final InventoryView.StockRow row;
     private       Runnable           onSaved;
     private final Stage              dialog = new Stage();
-
     private TextField  tfQty;
     private TextField  tfUnit;
-    private TextField  tfSupplier;
+    private ComboBox<String> cbCustomer;
     private DatePicker dpDateIn;
     private TextArea   taNotes;
     private Label      errQty;
+    private Label      errCustomer;
     private HBox       successBanner;
     private HBox       previewBox;
     private Label      lblPreview;
 
+    private final StockDAO stockDAO = new StockDAO();
+
     public StockInDialog(Stage ownerStage, InventoryView.StockRow row) {
         this.ownerStage = ownerStage;
         this.row        = row;
+        this.errCustomer = errorLabel("Supplier is required.");
     }
 
     public void setOnSaved(Runnable onSaved) { this.onSaved = onSaved; }
@@ -86,6 +90,9 @@ public class StockInDialog {
         scene.setFill(Color.TRANSPARENT);
         dialog.setScene(scene);
         dialog.centerOnScreen();
+
+        cbCustomer.getItems().addAll(stockDAO.getUniqueSuppliers());
+        cbCustomer.setValue(row.getSupplier());
 
         root.setOpacity(0);
         root.setTranslateY(18);
@@ -223,12 +230,13 @@ public class StockInDialog {
     }
 
     private HBox buildDeliveryRow() {
-        tfSupplier = new TextField(row.getSupplier());
-        tfSupplier.setPromptText("e.g. San Rafael Meats");
-        styleInput(tfSupplier);
+        cbCustomer = new ComboBox<>();
+        cbCustomer.setEditable(true);
+        cbCustomer.setPromptText("e.g. John Doe");
+        styleInput(cbCustomer);
         VBox supplierBox = new VBox(5);
         HBox.setHgrow(supplierBox, Priority.ALWAYS);
-        supplierBox.getChildren().addAll(fieldLabel("Supplier"), tfSupplier);
+        supplierBox.getChildren().addAll(fieldLabel("Supplier"), cbCustomer);
 
         dpDateIn = new DatePicker(LocalDate.now());
         dpDateIn.setMaxWidth(Double.MAX_VALUE);
@@ -280,6 +288,10 @@ public class StockInDialog {
                 ? dpDateIn.getValue().format(DateTimeFormatter.ISO_LOCAL_DATE)
                 : LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE);
 
+        String customerVal = cbCustomer.isEditable()
+                ? cbCustomer.getEditor().getText().trim()
+                : cbCustomer.getValue();
+
         try (Connection conn = DatabaseConnection.getConnection()) {
 
             // Log to stock_in_log table
@@ -289,7 +301,7 @@ public class StockInDialog {
                                 "VALUES (?, ?, ?, ?, ?, ?)");
                 ins.setString(1, row.getProductName());
                 ins.setDouble(2, qty);
-                ins.setString(3, tfSupplier.getText().trim());
+                ins.setString(3, customerVal);
                 ins.setString(4, dateStr);
                 ins.setString(5, tfUnit.getText().trim());
                 ins.setString(6, taNotes.getText().trim());
@@ -357,7 +369,7 @@ public class StockInDialog {
     private void clearForm() {
         tfQty.clear();
         tfUnit.setText(row.getUnit());
-        tfSupplier.setText(row.getSupplier());
+        cbCustomer.setValue(row.getSupplier());
         dpDateIn.setValue(LocalDate.now());
         taNotes.clear();
         setVisible(previewBox, false);

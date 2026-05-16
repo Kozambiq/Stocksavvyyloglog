@@ -2,6 +2,7 @@ package com.savvy.stocksavvyyloglog.dialog;
 
 import com.savvy.stocksavvyyloglog.model.Stock;
 import com.savvy.stocksavvyyloglog.model.StockDAO;
+import com.savvy.stocksavvyyloglog.model.SaleDAO;
 import com.savvy.stocksavvyyloglog.util.DatabaseConnection;
 import javafx.animation.FadeTransition;
 import javafx.animation.KeyFrame;
@@ -84,7 +85,7 @@ public class AddStockDialog {
     private TextField        tfQuantity;
     private ComboBox<String> cbUnit;
     private TextField        tfCostPerUnit;
-    private TextField        tfSupplier;
+    private ComboBox<String> cbCustomer;
     private DatePicker       dpDateReceived;
     private DatePicker       dpExpiryDate;
     private TextField        tfLowStockThreshold;
@@ -97,8 +98,10 @@ public class AddStockDialog {
     private Label            errQty;
     private Label            errCost;
     private Label            errLowStock;
+    private Label            errCustomer;
 
     private final StockDAO stockDAO = new StockDAO();
+    private final SaleDAO  saleDAO  = new SaleDAO();
     private final Stage    dialog   = new Stage();
     private Runnable       onSaved;
 
@@ -166,6 +169,9 @@ public class AddStockDialog {
             while (rsUnit.next()) {
                 cbUnit.getItems().add(rsUnit.getString("unit"));
             }
+
+            // Load Suppliers
+            cbCustomer.getItems().addAll(stockDAO.getUniqueSuppliers());
         } catch (Exception e) {
             System.err.println("[AddStockDialog] Failed to load dropdown values: " + e.getMessage());
         }
@@ -352,13 +358,14 @@ public class AddStockDialog {
 
     // ── Delivery Row ──────────────────────────────────────────────────────────
     private HBox buildDeliveryRow() {
-        tfSupplier = new TextField();
-        tfSupplier.setPromptText("e.g. San Rafael Meats");
-        styleInput(tfSupplier);
+        cbCustomer = new ComboBox<>();
+        cbCustomer.setEditable(true);
+        HBox customCustomer = createCustomComboBox(cbCustomer, "e.g. John Doe");
 
         VBox supplierBox = new VBox(5);
         HBox.setHgrow(supplierBox, Priority.ALWAYS);
-        supplierBox.getChildren().addAll(fieldLabel("Supplier"), tfSupplier);
+        errCustomer = errorLabel("Supplier is required.");
+        supplierBox.getChildren().addAll(fieldLabel("Supplier *"), customCustomer, errCustomer);
 
         dpDateReceived = new DatePicker(LocalDate.now());
         dpDateReceived.setMaxWidth(Double.MAX_VALUE);
@@ -474,13 +481,17 @@ public class AddStockDialog {
                 : cbUnit.getValue();
         String unit = (unitVal != null && !unitVal.isEmpty()) ? unitVal.toUpperCase() : null;
 
+        String customerVal = cbCustomer.isEditable()
+                ? cbCustomer.getEditor().getText().trim()
+                : cbCustomer.getValue();
+
         Stock stock = new Stock(
                 productName,
                 category,
                 Double.parseDouble(tfQuantity.getText().trim()),
                 unit,
                 costPerUnit,
-                tfSupplier.getText().trim(),
+                customerVal,
                 dpDateReceived.getValue() != null
                         ? dpDateReceived.getValue().format(DateTimeFormatter.ISO_LOCAL_DATE)
                         : LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE),
@@ -608,7 +619,7 @@ public class AddStockDialog {
         tfQuantity.clear();
         cbUnit.setValue("kg");
         tfCostPerUnit.clear();
-        tfSupplier.clear();
+        cbCustomer.setValue(null);
         dpDateReceived.setValue(LocalDate.now());
         dpExpiryDate.setValue(null);
         tfLowStockThreshold.setText("5");
