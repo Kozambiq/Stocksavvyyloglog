@@ -321,9 +321,43 @@ public class SalesViewEnhanced {
             }
         });
 
+        // ── Actions column ────────────────────────────────────────────────────
+        TableColumn<SaleRow, Void> colActions = new TableColumn<>("Actions");
+        colActions.setMinWidth(120);
+        colActions.setCellFactory(col -> new TableCell<>() {
+            private final ComboBox<String> actions = new ComboBox<>();
+            {
+                actions.setPromptText("...");
+                actions.getItems().addAll("edit", "change status");
+                actions.setStyle("-fx-font-family: Sans Serif; -fx-font-size: 11px; " +
+                        "-fx-background-color: transparent; -fx-border-color: #E8D8C0; " +
+                        "-fx-border-radius: 4; -fx-padding: 0 4;");
+                actions.setOnAction(e -> {
+                    String selected = actions.getValue();
+                    if (selected == null) return;
+                    
+                    SaleRow row = getTableView().getItems().get(getIndex());
+                    if ("edit".equals(selected)) {
+                        openEditSaleDialog(row);
+                    }
+                    // Reset selection without triggering listener again
+                    javafx.application.Platform.runLater(() -> actions.setValue(null));
+                });
+            }
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty) {
+                    setGraphic(null);
+                } else {
+                    setGraphic(actions);
+                }
+            }
+        });
+
         table.getColumns().addAll(
                 colId, colDate, colCustomer, colProduct,
-                colQty, colPrice, colTotal, colPayment, colType, colSoldBy, colStatus
+                colQty, colPrice, colTotal, colPayment, colType, colSoldBy, colStatus, colActions
         );
 
         allRows      = FXCollections.observableArrayList();
@@ -445,6 +479,22 @@ public class SalesViewEnhanced {
 
         } catch (Exception e) {
             showError("Could not open New Sale dialog: " + e.getMessage());
+        }
+    }
+
+    private void openEditSaleDialog(SaleRow row) {
+        try {
+            NewSaleController controller = new NewSaleController(stage, currentUser);
+            controller.show();
+            controller.populateFields(row);
+
+            javafx.animation.PauseTransition pause =
+                    new javafx.animation.PauseTransition(javafx.util.Duration.seconds(1));
+            pause.setOnFinished(e -> { loadData(); refreshStatCards(); });
+            pause.play();
+
+        } catch (Exception e) {
+            showError("Could not open Edit Sale dialog: " + e.getMessage());
         }
     }
 

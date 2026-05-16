@@ -66,11 +66,16 @@ public class SaleDAO {
             conn = DatabaseConnection.getConnection();
             conn.setAutoCommit(false);
 
+            // DEBUG: Log inputs
+            System.out.println("[SaleDAO] recordSale called with: customerName=" + customerName + ", soldBy=" + soldBy);
+
             // 1. Resolve or create customer
             int customerId = findOrCreateCustomer(conn, customerName);
+            System.out.println("[SaleDAO] Resolved customerId: " + customerId);
 
             // 2. Resolve sold_by user id
             int userId = findUserId(conn, soldBy);
+            System.out.println("[SaleDAO] Resolved userId: " + userId);
 
             // 3. Resolve product id — throws clearly if not found (FIX #1)
             int productId = findProductId(conn, productName);
@@ -125,16 +130,15 @@ public class SaleDAO {
                 }
             }
 
-            // 8. Log to stock_out (best-effort — FIX #2: removed 'stock_id' column)
+            // 8. Log to stock_out (best-effort)
             try {
                 String logOut =
-                        "INSERT INTO stock_out (product_id, quantity, reason, notes, removed_by, out_date) " +
-                                "VALUES (?, ?, 'Sold', ?, ?, CURDATE())";
+                        "INSERT INTO stock_out (stock_id, product_name, quantity_out, reason, notes, date_out) " +
+                                "VALUES (NULL, ?, ?, 'Sold', ?, CURDATE())";
                 try (PreparedStatement ps = conn.prepareStatement(logOut)) {
-                    ps.setInt   (1, productId);
+                    ps.setString(1, productName);
                     ps.setDouble(2, quantity);
                     ps.setString(3, notes != null ? notes : "");
-                    ps.setInt   (4, userId);
                     ps.executeUpdate();
                 }
             } catch (Exception logEx) {

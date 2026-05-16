@@ -52,6 +52,43 @@ public class NewSaleController {
         loadDropdowns();    // safe to populate now
     }
 
+    /** Pre-fills the dialog with existing sale data. */
+    public void populateFields(SaleDAO.SaleRow row) {
+        if (view.cbCustomerName == null) return; // safety
+
+        view.cbCustomerName.setValue(row.customerName);
+        view.cbProduct.setValue(row.productName);
+        view.tfQuantity.setText(String.format("%.0f", row.quantity));
+        view.tfUnitPrice.setText(String.format("%.2f", row.unitPrice));
+        
+        // Reconstruct discount
+        double expectedSubtotal = row.unitPrice * row.quantity;
+        double discount = 0;
+        if (expectedSubtotal > 0) {
+            discount = 100 * (1 - row.subtotal / expectedSubtotal);
+        }
+        view.tfDiscount.setText(String.format("%.0f", discount));
+
+        // Reconstruct delivery fee
+        double fee = row.totalAmount - row.subtotal;
+        if (fee < 0) fee = 0; // sanity check
+        view.tfDeliveryFee.setText(String.format("%.2f", fee));
+
+        view.cbOrderType.setValue(row.orderType);
+        try {
+            view.dpDeliveryDate.setValue(java.time.LocalDate.parse(row.saleDate.substring(0, 10)));
+        } catch (Exception e) {
+            view.dpDeliveryDate.setValue(java.time.LocalDate.now());
+        }
+        view.taNotes.setText(row.notes);
+        
+        if ("Cash".equals(row.paymentMethod)) {
+            view.rbCash.setSelected(true);
+        }
+        
+        view.updatePreview();
+    }
+
     // ── Load dropdowns from DB ────────────────────────────────────────────────
 
     private void loadDropdowns() {
@@ -102,7 +139,11 @@ public class NewSaleController {
     // ── Collect form → model ──────────────────────────────────────────────────
 
     private void collectFormData() {
-        model.setCustomerName(view.cbCustomerName.getValue());
+        String customerName = view.cbCustomerName.getValue();
+        if (customerName == null || customerName.trim().isEmpty()) {
+            customerName = view.cbCustomerName.getEditor().getText();
+        }
+        model.setCustomerName(customerName);
         model.setProduct(view.cbProduct.getValue());
         model.setDeliveryDate(view.dpDeliveryDate.getValue());
         model.setNotes(view.taNotes.getText().trim());
