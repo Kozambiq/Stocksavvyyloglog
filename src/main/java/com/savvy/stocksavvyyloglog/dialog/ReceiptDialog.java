@@ -117,16 +117,12 @@ public class ReceiptDialog {
     }
 
     private void updateStatus(String status) {
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement("UPDATE sales SET status = ? WHERE id = ?")) {
-            ps.setString(1, status);
-            ps.setInt(2, row.id);
-            ps.executeUpdate();
+        com.savvy.stocksavvyyloglog.model.SaleDAO dao = new com.savvy.stocksavvyyloglog.model.SaleDAO();
+        if (dao.updateStatus(row.id, status)) {
             if (onVoid != null) onVoid.run();
             stage.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-            new Alert(Alert.AlertType.ERROR, "Failed to update order status.").show();
+        } else {
+            new Alert(Alert.AlertType.ERROR, "Failed to update order status. Please check production stock levels if re-enabling.").show();
         }
     }
 

@@ -221,7 +221,7 @@ public class SalesViewEnhanced {
             if (selected == null) {
                 showError("Please select a sale to delete.");
             } else {
-                confirmVoid(selected);
+                confirmDelete(selected);
             }
         });
 
@@ -567,25 +567,25 @@ public class SalesViewEnhanced {
         });
     }
 
-    // ── Void (delete) a sale ──────────────────────────────────────────────────
-    private void confirmVoid(SaleRow row) {
+    // ── Delete a sale record (Hard Delete) ──────────────────────────────────
+    private void confirmDelete(SaleRow row) {
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-        confirm.setTitle("Void Sale");
-        confirm.setHeaderText("Void Sale #" + row.id + "?");
+        confirm.setTitle("Delete Sale Record");
+        confirm.setHeaderText("Delete Sale #" + row.id + "?");
         confirm.setContentText(
                 "Customer: " + row.customerName + "\n" +
-                        "Product:  " + row.productName  + "\n" +
-                        "Total:    ₱" + String.format("%.2f", row.totalAmount) + "\n\n" +
-                        "This will permanently delete the sale record.");
+                "Product:  " + row.productName  + "\n\n" +
+                "WARNING: This will permanently delete the record.\n" +
+                "Stock will NOT be restored to production.");
         confirm.showAndWait().ifPresent(btn -> {
             if (btn == ButtonType.OK) {
                 boolean ok = dao.deleteSale(row.id);
                 if (ok) {
                     loadData();
                     refreshStatCards();
-                    showSuccess("Sale #" + row.id + " has been voided.");
+                    showSuccess("Sale #" + row.id + " has been deleted.");
                 } else {
-                    showError("Failed to void the sale. Please try again.");
+                    showError("Failed to delete the sale record.");
                 }
             }
         });

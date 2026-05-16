@@ -87,7 +87,7 @@ public class SaleDAO {
             // 5. Insert into sales FIRST (parent row must exist before sales_items)
             String insertSale =
                     "INSERT INTO sales (customer_id, sale_date, total_amount, payment_method, order_type, sold_by, notes, status) " +
-                            "VALUES (?, ?, ?, ?, ?, ?, ?, 'Complete')";
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, 'Pending')";
             int saleId;
             try (PreparedStatement ps = conn.prepareStatement(insertSale, Statement.RETURN_GENERATED_KEYS)) {
                 ps.setInt   (1, customerId);
@@ -258,16 +258,71 @@ public class SaleDAO {
 
     public boolean updateStatus(int saleId, String status) {
         String sql = "UPDATE sales SET status = ? WHERE id = ?";
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, status);
-            ps.setInt(2, saleId);
-            return ps.executeUpdate() > 0;
+        Connection conn = null;
+        try {
+            conn = DatabaseConnection.getConnection();
+            conn.setAutoCommit(false);
+
+            // 0. Get current status to determine transition
+            String oldStatus = "";
+            try (PreparedStatement ps = conn.prepareStatement("SELECT status FROM sales WHERE id = ?")) {
+                ps.setInt(1, saleId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) oldStatus = rs.getString(1);
+                }
+            }
+
+            // 1. Logic:
+            // Transition TO Cancelled -> Restore Stock
+            if (!"Cancelled".equalsIgnoreCase(oldStatus) && "Cancelled".equalsIgnoreCase(status)) {
+                restoreStock(conn, saleId);
+            }
+            // Transition FROM Cancelled -> Deduct Stock
+            else if ("Cancelled".equalsIgnoreCase(oldStatus) && !"Cancelled".equalsIgnoreCase(status)) {
+                deductStockBySale(conn, saleId);
+            }
+
+            // 2. Update the status
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, status);
+                ps.setInt(2, saleId);
+                ps.executeUpdate();
+            }
+
+            conn.commit();
+            return true;
         } catch (Exception e) {
             System.err.println("[SaleDAO] updateStatus failed: " + e.getMessage());
+            if (conn != null) try { conn.rollback(); } catch (SQLException ignored) {}
             return false;
+        } finally {
+            if (conn != null) try { conn.setAutoCommit(true); conn.close(); } catch (SQLException ignored) {}
         }
     }
+
+    private void deductStockBySale(Connection conn, int saleId) throws SQLException {
+        String findItems = "SELECT p.name, si.quantity FROM sales_items si " +
+                           "JOIN products p ON si.product_id = p.id WHERE si.sale_id = ?";
+        String updateProd = "UPDATE productions SET quantity = quantity - ? WHERE name = ? AND quantity >= ?";
+        
+        try (PreparedStatement psFind = conn.prepareStatement(findItems)) {
+            psFind.setInt(1, saleId);
+            try (ResultSet rs = psFind.executeQuery()) {
+                while (rs.next()) {
+                    String prodName = rs.getString("name");
+                    double qty      = rs.getDouble("quantity");
+                    try (PreparedStatement psUpd = conn.prepareStatement(updateProd)) {
+                        psUpd.setDouble(1, qty);
+                        psUpd.setString(2, prodName);
+                        psUpd.setDouble(3, qty);
+                        int rows = psUpd.executeUpdate();
+                        if (rows == 0) throw new SQLException("Insufficient production stock to reactivate sale for: " + prodName);
+                    }
+                }
+            }
+        }
+    }
+
 
     // ── READ: summary stats ───────────────────────────────────────────────────
     public SaleSummary getSummary() {
@@ -350,17 +405,19 @@ public class SaleDAO {
         return 0.0;
     }
 
-    // ── DELETE: void a sale by id ─────────────────────────────────────────────
+    // ── DELETE: hard remove a sale by id ──────────────────────────────────────
     public boolean deleteSale(int saleId) {
         Connection conn = null;
         try {
             conn = DatabaseConnection.getConnection();
             conn.setAutoCommit(false);
 
+            // 1. Delete items (No stock restoration for hard deletes per requirement)
             try (PreparedStatement ps = conn.prepareStatement("DELETE FROM sales_items WHERE sale_id = ?")) {
                 ps.setInt(1, saleId);
                 ps.executeUpdate();
             }
+            // 2. Delete sale record
             try (PreparedStatement ps = conn.prepareStatement("DELETE FROM sales WHERE id = ?")) {
                 ps.setInt(1, saleId);
                 ps.executeUpdate();
@@ -376,6 +433,29 @@ public class SaleDAO {
             if (conn != null) try { conn.setAutoCommit(true); conn.close(); } catch (Exception ignored) {}
         }
     }
+
+    /** Helper to restore production quantity from a sale's items. */
+    private void restoreStock(Connection conn, int saleId) throws SQLException {
+        String findItems = "SELECT p.name, si.quantity FROM sales_items si " +
+                           "JOIN products p ON si.product_id = p.id WHERE si.sale_id = ?";
+        String updateProd = "UPDATE productions SET quantity = quantity + ? WHERE name = ?";
+        
+        try (PreparedStatement psFind = conn.prepareStatement(findItems)) {
+            psFind.setInt(1, saleId);
+            try (ResultSet rs = psFind.executeQuery()) {
+                while (rs.next()) {
+                    String prodName = rs.getString("name");
+                    double qty      = rs.getDouble("quantity");
+                    try (PreparedStatement psUpd = conn.prepareStatement(updateProd)) {
+                        psUpd.setDouble(1, qty);
+                        psUpd.setString(2, prodName);
+                        psUpd.executeUpdate();
+                    }
+                }
+            }
+        }
+    }
+
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
