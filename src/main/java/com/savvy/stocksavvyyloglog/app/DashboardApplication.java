@@ -168,7 +168,6 @@ public class DashboardApplication {
         signOutBtn.setOnAction(e -> signOut());
 
         // ── Right nav buttons ────────────────────────────────────────────────
-        Button receiptsBtn   = createNavButton("Receipts",    false);
         Button calendarBtn   = createNavButton("Calendar",    false);
         Button reportsBtn    = createNavButton("Reports",     false);
 
@@ -181,7 +180,6 @@ public class DashboardApplication {
         rightNav.setAlignment(Pos.CENTER_RIGHT);
         rightNav.setPadding(new Insets(0, 24, 0, 0));
         rightNav.getChildren().addAll(
-                receiptsBtn,
                 calendarBtn,
                 reportsBtn,
                 signOutBtn
