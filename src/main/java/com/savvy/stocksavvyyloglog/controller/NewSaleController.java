@@ -126,6 +126,13 @@ public class NewSaleController {
             model.setDiscountPercent(0);
         }
 
+        try {
+            String fee = view.tfDeliveryFee.getText().trim();
+            model.setDeliveryFee(fee.isEmpty() ? 0.0 : Double.parseDouble(fee));
+        } catch (NumberFormatException e) {
+            model.setDeliveryFee(0);
+        }
+
         RadioButton selected = (RadioButton) view.paymentGroup.getSelectedToggle();
         if (selected != null) model.setPaymentMethod(selected.getText());
         
@@ -145,6 +152,7 @@ public class NewSaleController {
                 model.getQuantity(),
                 model.getUnitPrice(),
                 model.getDiscountPercent(),
+                model.getDeliveryFee(),
                 model.getPaymentMethod(),
                 model.getOrderType(),
                 saleDate,

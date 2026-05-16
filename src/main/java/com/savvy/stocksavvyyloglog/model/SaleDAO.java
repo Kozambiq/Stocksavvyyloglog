@@ -58,6 +58,7 @@ public class SaleDAO {
     // ── CREATE: insert a sale + its items + deduct stock ─────────────────────
     public boolean recordSale(String customerName, String productName,
                               int quantity, double unitPrice, double discount,
+                              double deliveryFee,
                               String paymentMethod, String orderType, String saleDate,
                               String notes, String soldBy) {
         Connection conn = null;
@@ -76,12 +77,12 @@ public class SaleDAO {
 
             // 4. Compute totals
             double subtotal    = unitPrice * quantity * (1.0 - discount / 100.0);
-            double totalAmount = subtotal;
+            double totalAmount = subtotal + ("deliver".equals(orderType) ? deliveryFee : 0);
 
             // 5. Insert into sales FIRST (parent row must exist before sales_items)
             String insertSale =
-                    "INSERT INTO sales (customer_id, sale_date, total_amount, payment_method, order_type, sold_by) " +
-                            "VALUES (?, ?, ?, ?, ?, ?)";
+                    "INSERT INTO sales (customer_id, sale_date, total_amount, payment_method, order_type, sold_by, notes) " +
+                            "VALUES (?, ?, ?, ?, ?, ?, ?)";
             int saleId;
             try (PreparedStatement ps = conn.prepareStatement(insertSale, Statement.RETURN_GENERATED_KEYS)) {
                 ps.setInt   (1, customerId);
@@ -90,6 +91,7 @@ public class SaleDAO {
                 ps.setString(4, paymentMethod);
                 ps.setString(5, orderType);
                 ps.setInt   (6, userId);
+                ps.setString(7, notes);
                 ps.executeUpdate();
                 ResultSet keys = ps.getGeneratedKeys();
                 if (!keys.next()) throw new SQLException("Failed to get generated sale ID.");

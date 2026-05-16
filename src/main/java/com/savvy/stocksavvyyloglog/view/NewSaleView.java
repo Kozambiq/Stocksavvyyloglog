@@ -75,7 +75,9 @@ public class NewSaleView {
     public TextField        tfUnitPrice;
     public TextField        tfDiscount;
     public ToggleGroup      paymentGroup;
-    public RadioButton      rbCash, rbGCash, rbBankTransfer, rbCredit;
+    public RadioButton      rbCash;
+    public TextField        tfDeliveryFee;
+    public VBox             deliveryFeeBox;
     public DatePicker       dpDeliveryDate;
     public Label            lblDeliveryDate;
     public TextArea         taNotes;
@@ -87,6 +89,7 @@ public class NewSaleView {
     public Label            errProduct;
     public Label            errPrice;
     public Label            errOrderType;
+    public Label            errDeliveryFee;
 
     public Label            totalLabel;
 
@@ -228,10 +231,6 @@ public class NewSaleView {
     private VBox buildCustomerRow() {
         cbCustomerName = new ComboBox<>();
         cbCustomerName.setEditable(true);
-        cbCustomerName.getItems().addAll(
-                "Ate Nena", "Jollibee", "Robinsons Supermarket",
-                "SM Supermarket", "Walk-in Customer"
-        );
         cbCustomerName.setPromptText("— Select or type customer —");
         cbCustomerName.setMaxWidth(Double.MAX_VALUE);
         styleInput(cbCustomerName);
@@ -335,11 +334,8 @@ public class NewSaleView {
         paymentGroup = new ToggleGroup();
 
         rbCash         = radioBtn("Cash",          true);
-        rbGCash        = radioBtn("GCash",         false);
-        rbBankTransfer = radioBtn("Bank Transfer", false);
-        rbCredit       = radioBtn("Credit",        false);
 
-        HBox radioRow = new HBox(16, rbCash, rbGCash, rbBankTransfer, rbCredit);
+        HBox radioRow = new HBox(16, rbCash);
         radioRow.setAlignment(Pos.CENTER_LEFT);
         radioRow.setPadding(new Insets(4, 0, 0, 0));
 
@@ -382,20 +378,38 @@ public class NewSaleView {
         cbOrderType.setValue("pickup");
         cbOrderType.setMaxWidth(Double.MAX_VALUE);
         styleInput(cbOrderType);
-        
+
+        tfDeliveryFee = new TextField("0.00");
+        styleInput(tfDeliveryFee);
+        tfDeliveryFee.textProperty().addListener((o, ov, nv) -> {
+            updatePreview();
+            clearError(tfDeliveryFee, errDeliveryFee);
+        });
+
+        errDeliveryFee = errorLabel("Delivery fee is mandatory for delivery orders.");
+        deliveryFeeBox = new VBox(5, fieldLabel("Delivery Fee (\u20B1) *"), tfDeliveryFee, errDeliveryFee);
+        setVisible(deliveryFeeBox, false);
+
         cbOrderType.valueProperty().addListener((o, ov, nv) -> {
             if ("pickup".equals(nv)) {
                 lblDeliveryDate.setText("Pick-up Date");
+                setVisible(deliveryFeeBox, false);
+                tfDeliveryFee.setText("0.00");
             } else {
                 lblDeliveryDate.setText("Delivery Date");
+                setVisible(deliveryFeeBox, true);
             }
+            updatePreview();
             clearError(cbOrderType, errOrderType);
         });
 
         errOrderType = errorLabel("Please select order type.");
 
-        VBox box = new VBox(5);
-        box.getChildren().addAll(fieldLabel("Order Type *"), cbOrderType, errOrderType);
+        VBox box = new VBox(10);
+        box.getChildren().addAll(
+            new VBox(5, fieldLabel("Order Type *"), cbOrderType, errOrderType),
+            deliveryFeeBox
+        );
         return box;
     }
 
@@ -452,6 +466,7 @@ public class NewSaleView {
         String qtyText   = tfQuantity.getText().trim();
         String priceText = tfUnitPrice.getText().trim();
         String discText  = tfDiscount.getText().trim();
+        String feeText   = tfDeliveryFee.getText().trim();
 
         if (product == null || priceText.isEmpty()) {
             setVisible(previewBox, false);
@@ -462,10 +477,14 @@ public class NewSaleView {
             int    qty      = qtyText.isEmpty() ? 1 : Integer.parseInt(qtyText);
             double price    = Double.parseDouble(priceText);
             double discount = discText.isEmpty() ? 0 : Double.parseDouble(discText);
-            double total    = price * qty * (1.0 - discount / 100.0);
+            double fee      = (feeText.isEmpty() || !"deliver".equals(cbOrderType.getValue())) ? 0 : Double.parseDouble(feeText);
+            
+            double subtotal = price * qty * (1.0 - discount / 100.0);
+            double total    = subtotal + fee;
 
             String preview = String.format("%d \u00D7 %s @ \u20B1%.2f", qty, product, price);
             if (discount > 0) preview += String.format(" (%.0f%% off)", discount);
+            if (fee > 0) preview += String.format(" + \u20B1%.2f fee", fee);
             preview += String.format("   \u2014   Total: \u20B1%.2f", total);
 
             lblPreview.setText(preview);
@@ -494,6 +513,15 @@ public class NewSaleView {
         if (cbOrderType.getValue() == null) {
             showError(cbOrderType, errOrderType);
             valid = false;
+        } else if ("deliver".equals(cbOrderType.getValue())) {
+            try {
+                double fee = Double.parseDouble(tfDeliveryFee.getText().trim());
+                if (fee < 0) throw new NumberFormatException();
+                clearError(tfDeliveryFee, errDeliveryFee);
+            } catch (NumberFormatException e) {
+                showError(tfDeliveryFee, errDeliveryFee);
+                valid = false;
+            }
         }
 
         try {
@@ -516,6 +544,7 @@ public class NewSaleView {
         tfQuantity.setText("1");
         tfUnitPrice.clear();
         tfDiscount.clear();
+        tfDeliveryFee.setText("0.00");
         rbCash.setSelected(true);
         dpDeliveryDate.setValue(LocalDate.now());
         taNotes.clear();
@@ -525,6 +554,7 @@ public class NewSaleView {
         clearError(cbProduct, errProduct);
         clearError(cbOrderType, errOrderType);
         clearError(tfUnitPrice, errPrice);
+        clearError(tfDeliveryFee, errDeliveryFee);
     }
 
     // ── Show success banner ───────────────────────────────────────────────────

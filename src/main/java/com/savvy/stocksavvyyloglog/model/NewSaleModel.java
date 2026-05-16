@@ -14,6 +14,7 @@ public class NewSaleModel {
     private int       quantity;
     private double    unitPrice;
     private double    discountPercent;
+    private double    deliveryFee;
     private String    paymentMethod;
     private String    orderType;
     private LocalDate deliveryDate;
@@ -24,13 +25,14 @@ public class NewSaleModel {
     public NewSaleModel() {
         this.quantity        = 1;
         this.discountPercent = 0.0;
+        this.deliveryFee     = 0.0;
         this.paymentMethod   = "Cash";
         this.orderType       = "pickup";
         this.deliveryDate    = LocalDate.now();
     }
 
     public NewSaleModel(String customerName, String product, int quantity,
-                        double unitPrice, double discountPercent,
+                        double unitPrice, double discountPercent, double deliveryFee,
                         String paymentMethod, String orderType,
                         LocalDate deliveryDate, String notes) {
         this.customerName    = customerName;
@@ -38,6 +40,7 @@ public class NewSaleModel {
         this.quantity        = quantity;
         this.unitPrice       = unitPrice;
         this.discountPercent = discountPercent;
+        this.deliveryFee     = deliveryFee;
         this.paymentMethod   = paymentMethod;
         this.orderType       = orderType;
         this.deliveryDate    = deliveryDate;
@@ -46,9 +49,10 @@ public class NewSaleModel {
 
     // ── Computed ──────────────────────────────────────────────────────────────
 
-    /** Returns the final total after discount. */
+    /** Returns the final total after discount and adding delivery fee. */
     public double getTotal() {
-        return unitPrice * quantity * (1.0 - discountPercent / 100.0);
+        double subtotal = unitPrice * quantity * (1.0 - discountPercent / 100.0);
+        return subtotal + ("deliver".equals(orderType) ? deliveryFee : 0);
     }
 
     /** Basic validation — returns error string or empty if valid. */
@@ -62,6 +66,8 @@ public class NewSaleModel {
             errors.append("• Unit price must be greater than zero.\n");
         if (orderType == null || orderType.trim().isEmpty())
             errors.append("• Order type is required.\n");
+        if ("deliver".equals(orderType) && deliveryFee < 0)
+            errors.append("• Delivery fee cannot be negative.\n");
         return errors.toString();
     }
 
@@ -84,6 +90,9 @@ public class NewSaleModel {
 
     public double    getDiscountPercent()            { return discountPercent; }
     public void      setDiscountPercent(double v)    { this.discountPercent = v; }
+
+    public double    getDeliveryFee()                { return deliveryFee; }
+    public void      setDeliveryFee(double v)        { this.deliveryFee = v; }
 
     public String    getPaymentMethod()              { return paymentMethod; }
     public void      setPaymentMethod(String v)      { this.paymentMethod = v; }
