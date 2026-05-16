@@ -116,34 +116,30 @@ public class SaleDAO {
                 ps.executeUpdate();
             }
 
-            // 7. Deduct from stocks
-            String deductStock =
-                    "UPDATE stocks SET quantity = quantity - ? WHERE product_name = ? AND quantity >= ?";
-            try (PreparedStatement ps = conn.prepareStatement(deductStock)) {
+            // 7. Deduct from productions (finished products)
+            String deductProd =
+                    "UPDATE productions SET quantity = quantity - ? WHERE name = ? AND quantity >= ?";
+            try (PreparedStatement ps = conn.prepareStatement(deductProd)) {
                 ps.setDouble(1, quantity);
                 ps.setString(2, productName);
                 ps.setDouble(3, quantity);
                 int rows = ps.executeUpdate();
                 if (rows == 0) {
-                    // Not enough stock — roll back and inform caller
-                    throw new SQLException("Insufficient stock for product: " + productName);
+                    // Not enough stock in productions — roll back and inform caller
+                    throw new SQLException("Insufficient finished product stock for: " + productName);
                 }
             }
 
-            // 8. Log to stock_out (best-effort)
-            try {
-                String logOut =
-                        "INSERT INTO stock_out (stock_id, product_name, quantity_out, reason, notes, date_out) " +
-                                "VALUES (NULL, ?, ?, 'Sold', ?, CURDATE())";
-                try (PreparedStatement ps = conn.prepareStatement(logOut)) {
-                    ps.setString(1, productName);
-                    ps.setDouble(2, quantity);
-                    ps.setString(3, notes != null ? notes : "");
-                    ps.executeUpdate();
-                }
-            } catch (Exception logEx) {
-                // stock_out logging is best-effort; log but don't fail the sale
-                System.err.println("[SaleDAO] stock_out log skipped: " + logEx.getMessage());
+            // 8. Update production status if needed
+            String updateStatus = 
+                    "UPDATE productions SET status = CASE " +
+                    "WHEN quantity <= 0 THEN 'No Stock' " +
+                    "WHEN quantity <= 10 THEN 'Low Stock' " +
+                    "ELSE 'In Stock' END " +
+                    "WHERE name = ?";
+            try (PreparedStatement ps = conn.prepareStatement(updateStatus)) {
+                ps.setString(1, productName);
+                ps.executeUpdate();
             }
 
             conn.commit();
@@ -312,16 +308,16 @@ public class SaleDAO {
         return s;
     }
 
-    // ── READ: product names from stocks ───────────────────────────────────────
-    public List<String> getProductNames() {
+    // ── READ: product names from productions ─────────────────────────────────
+    public List<String> getProductionProductNames() {
         List<String> names = new ArrayList<>();
-        String sql = "SELECT DISTINCT product_name FROM stocks ORDER BY product_name ASC";
+        String sql = "SELECT name FROM productions ORDER BY name ASC";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) names.add(rs.getString(1));
         } catch (Exception e) {
-            System.err.println("[SaleDAO] getProductNames failed: " + e.getMessage());
+            System.err.println("[SaleDAO] getProductionProductNames failed: " + e.getMessage());
         }
         return names;
     }
@@ -340,16 +336,16 @@ public class SaleDAO {
         return names;
     }
 
-    // ── READ: unit price from stocks ──────────────────────────────────────────
-    public double getUnitPrice(String productName) {
-        String sql = "SELECT cost_per_unit FROM stocks WHERE product_name = ? LIMIT 1";
+    // ── READ: unit price from productions ────────────────────────────────────
+    public double getProductionPrice(String productName) {
+        String sql = "SELECT price FROM productions WHERE name = ? LIMIT 1";
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, productName);
             ResultSet rs = ps.executeQuery();
             if (rs.next()) return rs.getDouble(1);
         } catch (Exception e) {
-            System.err.println("[SaleDAO] getUnitPrice failed: " + e.getMessage());
+            System.err.println("[SaleDAO] getProductionPrice failed: " + e.getMessage());
         }
         return 0.0;
     }
@@ -411,12 +407,17 @@ public class SaleDAO {
     }
 
     /**
-     * Looks up product ID from products table first, then stocks table.
-     * FIX: throws SQLException instead of silently returning id=1,
-     * which caused FK constraint failures on sales_items.
+     * Looks up product ID from productions table first, then products, then stocks.
      */
     private int findProductId(Connection conn, String productName) throws SQLException {
-        // Try products table first
+        // Try productions table first
+        String sql0 = "SELECT id FROM productions WHERE name = ? LIMIT 1";
+        try (PreparedStatement ps = conn.prepareStatement(sql0)) {
+            ps.setString(1, productName);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return rs.getInt(1);
+        }
+        // Try products table
         String sql1 = "SELECT id FROM products WHERE name = ? LIMIT 1";
         try (PreparedStatement ps = conn.prepareStatement(sql1)) {
             ps.setString(1, productName);
@@ -430,7 +431,6 @@ public class SaleDAO {
             ResultSet rs = ps.executeQuery();
             if (rs.next()) return rs.getInt(1);
         }
-        // FIX: throw instead of silently returning 1 (which caused FK failures)
-        throw new SQLException("Product not found in products or stocks table: " + productName);
+        throw new SQLException("Product not found: " + productName);
     }
 }

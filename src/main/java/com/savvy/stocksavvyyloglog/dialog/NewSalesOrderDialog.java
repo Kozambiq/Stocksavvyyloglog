@@ -85,25 +85,23 @@ public class NewSalesOrderDialog {
         customerBox.setMaxWidth(Double.MAX_VALUE);
         styleCombo(customerBox);
 
-        // Product
-        List<String> products = dao.getProductNames();
-        ComboBox<String> productBox = new ComboBox<>();
-        productBox.getItems().addAll(products);
-        productBox.setPromptText("Select product…");
-        productBox.setMaxWidth(Double.MAX_VALUE);
-        styleCombo(productBox);
-
-        // Qty
-        TextField qtyField = styledField("e.g. 10");
-
         // Unit Price (auto-filled on product select)
         TextField priceField = styledField("e.g. 150.00");
-        productBox.valueProperty().addListener((obs, o, n) -> {
-            if (n != null) {
-                double price = dao.getUnitPrice(n);
+
+        // Product
+        TextField productInput = styledField("Search product…");
+        MenuButton productDropdown = new MenuButton();
+        productDropdown.setStyle("-fx-background-color: transparent; -fx-border-color: " + L_BORDER + "; -fx-border-radius: 0 6 6 0;");
+        
+        for (String p : dao.getProductionProductNames()) {
+            MenuItem item = new MenuItem(p);
+            item.setOnAction(e -> {
+                productInput.setText(p);
+                double price = dao.getProductionPrice(p);
                 priceField.setText(price > 0 ? String.format("%.2f", price) : "");
-            }
-        });
+            });
+            productDropdown.getItems().add(item);
+        }
 
         // Delivery Date
         DatePicker deliveryPicker = new DatePicker(LocalDate.now().plusDays(3));
@@ -118,6 +116,13 @@ public class NewSalesOrderDialog {
         notesArea.setStyle("-fx-font-family: Sans Serif; -fx-font-size: 12px; " +
                 "-fx-background-color: " + L_BG + "; -fx-border-color: " + L_BORDER + "; " +
                 "-fx-border-width: 1; -fx-border-radius: 6; -fx-background-radius: 6;");
+
+        HBox productBox = new HBox(0, productInput, productDropdown);
+        HBox.setHgrow(productInput, Priority.ALWAYS);
+        productInput.setStyle("-fx-background-color: " + L_BG + "; -fx-border-color: " + L_BORDER + "; -fx-border-width: 1 0 1 1; -fx-border-radius: 6 0 0 6; -fx-padding: 8 12;");
+
+        // Qty
+        TextField qtyField = styledField("e.g. 10");
 
         // Add rows
         addRow(grid, 0, "Customer *",      customerBox);
@@ -148,12 +153,12 @@ public class NewSalesOrderDialog {
         saveBtn.setOnAction(e -> {
             // Validate
             String customer = customerBox.getValue();
-            String product  = productBox.getValue();
+            String product  = productInput.getText().trim();
             String qtyStr   = qtyField.getText().trim();
             String priceStr = priceField.getText().trim();
 
             if (customer == null || customer.isBlank()) { showError("Customer is required."); return; }
-            if (product  == null || product.isBlank())  { showError("Product is required.");  return; }
+            if (product.isBlank())  { showError("Product is required.");  return; }
             if (qtyStr.isBlank())   { showError("Quantity is required.");   return; }
             if (priceStr.isBlank()) { showError("Unit price is required."); return; }
 

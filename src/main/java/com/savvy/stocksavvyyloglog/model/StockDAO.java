@@ -114,6 +114,25 @@ public class StockDAO {
         }
     }
 
+    // ── STOCK MANAGEMENT FOR PRODUCTION ──────────────────────────────────────
+    public boolean hasEnoughStock(String name, double amount) {
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement("SELECT quantity FROM stocks WHERE product_name = ?")) {
+            ps.setString(1, name);
+            ResultSet rs = ps.executeQuery();
+            return rs.next() && rs.getDouble("quantity") >= amount;
+        } catch (Exception e) { return false; }
+    }
+
+    public void deductStock(Connection conn, String name, double amount) throws SQLException {
+        String sql = "UPDATE stocks SET quantity = quantity - ? WHERE product_name = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setDouble(1, amount);
+            ps.setString(2, name);
+            ps.executeUpdate();
+        }
+    }
+
     // ── Helper ────────────────────────────────────────────────────────────────
     private Stock mapRow(ResultSet rs) throws SQLException {
         Stock s = new Stock();

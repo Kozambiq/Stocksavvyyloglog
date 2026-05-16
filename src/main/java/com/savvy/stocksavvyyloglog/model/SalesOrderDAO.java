@@ -282,17 +282,30 @@ public class SalesOrderDAO {
         return 1;
     }
 
-    public List<String> getProductNames() {
+    public List<String> getProductionProductNames() {
         List<String> names = new ArrayList<>();
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(
-                     "SELECT DISTINCT product_name FROM stocks ORDER BY product_name ASC");
+                     "SELECT name FROM productions ORDER BY name ASC");
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) names.add(rs.getString(1));
         } catch (Exception e) {
-            System.err.println("[SalesOrderDAO] getProductNames failed: " + e.getMessage());
+            System.err.println("[SalesOrderDAO] getProductionProductNames failed: " + e.getMessage());
         }
         return names;
+    }
+
+    public double getProductionPrice(String productName) {
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT price FROM productions WHERE name = ? LIMIT 1")) {
+            ps.setString(1, productName);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) return rs.getDouble(1);
+        } catch (Exception e) {
+            System.err.println("[SalesOrderDAO] getProductionPrice failed: " + e.getMessage());
+        }
+        return 0.0;
     }
 
     public List<String> getCustomerNames() {
@@ -306,18 +319,5 @@ public class SalesOrderDAO {
             System.err.println("[SalesOrderDAO] getCustomerNames failed: " + e.getMessage());
         }
         return names;
-    }
-
-    public double getUnitPrice(String productName) {
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement(
-                     "SELECT cost_per_unit FROM stocks WHERE product_name = ? LIMIT 1")) {
-            ps.setString(1, productName);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) return rs.getDouble(1);
-        } catch (Exception e) {
-            System.err.println("[SalesOrderDAO] getUnitPrice failed: " + e.getMessage());
-        }
-        return 0.0;
     }
 }

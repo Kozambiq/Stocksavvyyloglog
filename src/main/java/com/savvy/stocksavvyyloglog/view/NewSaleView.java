@@ -69,7 +69,8 @@ public class NewSaleView {
 
     // ── Form fields (public for controller access across packages) ────────────
     public ComboBox<String> cbCustomerName;
-    public ComboBox<String> cbProduct;
+    public TextField        tfProduct;
+    public MenuButton       mbProductDropdown;
     public ComboBox<String> cbOrderType;
     public TextField        tfQuantity;
     public TextField        tfUnitPrice;
@@ -246,24 +247,28 @@ public class NewSaleView {
 
     // ── Product Row ───────────────────────────────────────────────────────────
     private HBox buildProductRow() {
-        cbProduct = new ComboBox<>();
-        cbProduct.getItems().addAll(
-                "Longanisa (Garlic)", "Longanisa (Sweet)",
-                "Tocino", "Tapa", "Longganisang Hamonado"
-        );
-        cbProduct.setPromptText("— Select product —");
-        cbProduct.setMaxWidth(Double.MAX_VALUE);
-        styleInput(cbProduct);
-        cbProduct.valueProperty().addListener((o, ov, nv) -> {
+        tfProduct = new TextField();
+        tfProduct.setPromptText("Search or select product…");
+        HBox.setHgrow(tfProduct, Priority.ALWAYS);
+        styleInput(tfProduct);
+        tfProduct.setStyle(tfProduct.getStyle() + " -fx-border-radius: 7 0 0 7; -fx-background-radius: 7 0 0 7; -fx-border-width: 1 0 1 1;");
+        tfProduct.textProperty().addListener((o, ov, nv) -> {
             updatePreview();
-            clearError(cbProduct, errProduct);
+            clearError(tfProduct, errProduct);
         });
 
-        errProduct = errorLabel("Please select a product.");
+        mbProductDropdown = new MenuButton();
+        mbProductDropdown.setStyle("-fx-background-color: " + inputBg() + "; -fx-border-color: " + border() + "; -fx-border-radius: 0 7 7 0; -fx-background-radius: 0 7 7 0; -fx-border-width: 1;");
+        mbProductDropdown.setPrefHeight(38); // match TextField height
 
-        VBox productBox = new VBox(5);
-        HBox.setHgrow(productBox, Priority.ALWAYS);
-        productBox.getChildren().addAll(fieldLabel("Product *"), cbProduct, errProduct);
+        HBox productInputBox = new HBox(tfProduct, mbProductDropdown);
+        productInputBox.setMaxWidth(Double.MAX_VALUE);
+
+        errProduct = errorLabel("Please select or enter a product.");
+
+        VBox productContainer = new VBox(5);
+        HBox.setHgrow(productContainer, Priority.ALWAYS);
+        productContainer.getChildren().addAll(fieldLabel("Product *"), productInputBox, errProduct);
 
         tfQuantity = new TextField("1");
         styleInput(tfQuantity);
@@ -273,7 +278,7 @@ public class NewSaleView {
         qtyBox.setPrefWidth(110);
         qtyBox.getChildren().addAll(fieldLabel("Quantity"), tfQuantity);
 
-        HBox row = new HBox(12, productBox, qtyBox);
+        HBox row = new HBox(12, productContainer, qtyBox);
         row.setMaxWidth(Double.MAX_VALUE);
         return row;
     }
@@ -462,13 +467,13 @@ public class NewSaleView {
 
     // ── Live preview ──────────────────────────────────────────────────────────
     public void updatePreview() {
-        String product   = cbProduct.getValue();
+        String product   = tfProduct.getText();
         String qtyText   = tfQuantity.getText().trim();
         String priceText = tfUnitPrice.getText().trim();
         String discText  = tfDiscount.getText().trim();
         String feeText   = tfDeliveryFee.getText().trim();
 
-        if (product == null || priceText.isEmpty()) {
+        if (product == null || product.isEmpty() || priceText.isEmpty()) {
             setVisible(previewBox, false);
             totalLabel.setText("Total: \u20B10.00");
             return;
@@ -505,8 +510,8 @@ public class NewSaleView {
             valid = false;
         }
 
-        if (cbProduct.getValue() == null || cbProduct.getValue().trim().isEmpty()) {
-            showError(cbProduct, errProduct);
+        if (tfProduct.getText() == null || tfProduct.getText().trim().isEmpty()) {
+            showError(tfProduct, errProduct);
             valid = false;
         }
 
@@ -539,7 +544,7 @@ public class NewSaleView {
     // ── Clear form ────────────────────────────────────────────────────────────
     public void clearForm() {
         cbCustomerName.setValue(null);
-        cbProduct.setValue(null);
+        tfProduct.clear();
         cbOrderType.setValue("pickup");
         tfQuantity.setText("1");
         tfUnitPrice.clear();
@@ -551,7 +556,7 @@ public class NewSaleView {
         totalLabel.setText("Total: \u20B10.00");
         setVisible(previewBox, false);
         clearError(cbCustomerName, errCustomer);
-        clearError(cbProduct, errProduct);
+        clearError(tfProduct, errProduct);
         clearError(cbOrderType, errOrderType);
         clearError(tfUnitPrice, errPrice);
         clearError(tfDeliveryFee, errDeliveryFee);

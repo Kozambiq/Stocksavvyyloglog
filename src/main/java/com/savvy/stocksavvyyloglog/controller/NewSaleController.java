@@ -57,7 +57,7 @@ public class NewSaleController {
         if (view.cbCustomerName == null) return; // safety
 
         view.cbCustomerName.setValue(row.customerName);
-        view.cbProduct.setValue(row.productName);
+        view.tfProduct.setText(row.productName);
         view.tfQuantity.setText(String.format("%.0f", row.quantity));
         view.tfUnitPrice.setText(String.format("%.2f", row.unitPrice));
         
@@ -92,27 +92,24 @@ public class NewSaleController {
     // ── Load dropdowns from DB ────────────────────────────────────────────────
 
     private void loadDropdowns() {
-        // Products from stocks table
-        java.util.List<String> products = dao.getProductNames();
-        if (!products.isEmpty()) {
-            view.cbProduct.getItems().setAll(products);
+        // Products from productions table
+        java.util.List<String> products = dao.getProductionProductNames();
+        view.mbProductDropdown.getItems().clear();
+        for (String p : products) {
+            javafx.scene.control.MenuItem item = new javafx.scene.control.MenuItem(p);
+            item.setOnAction(e -> {
+                view.tfProduct.setText(p);
+                double price = dao.getProductionPrice(p);
+                if (price > 0) {
+                    view.tfUnitPrice.setText(String.format("%.2f", price));
+                }
+            });
+            view.mbProductDropdown.getItems().add(item);
         }
 
         // Customers from customers table
         java.util.List<String> customers = dao.getCustomerNames();
-        if (!customers.isEmpty()) {
-            view.cbCustomerName.getItems().setAll(customers);
-        }
-
-        // Auto-fill unit price when product is selected
-        view.cbProduct.valueProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal != null && !newVal.isEmpty()) {
-                double price = dao.getUnitPrice(newVal);
-                if (price > 0) {
-                    view.tfUnitPrice.setText(String.format("%.2f", price));
-                }
-            }
-        });
+        view.cbCustomerName.getItems().setAll(customers);
     }
 
     // ── Confirm ───────────────────────────────────────────────────────────────
@@ -144,7 +141,7 @@ public class NewSaleController {
             customerName = view.cbCustomerName.getEditor().getText();
         }
         model.setCustomerName(customerName);
-        model.setProduct(view.cbProduct.getValue());
+        model.setProduct(view.tfProduct.getText().trim());
         model.setDeliveryDate(view.dpDeliveryDate.getValue());
         model.setNotes(view.taNotes.getText().trim());
 
