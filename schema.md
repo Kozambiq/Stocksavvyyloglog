@@ -165,6 +165,51 @@ Purchase orders for restocking.
 
 ---
 
+### schedule
+
+Manual events and schedules for the calendar.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | INT | PRIMARY KEY, AUTO_INCREMENT |
+| `title` | VARCHAR(100) | NOT NULL |
+| `description` | TEXT | NULL |
+| `event_date` | DATE | NOT NULL |
+| `event_type` | VARCHAR(50) | NULL (e.g., 'Delivery', 'Production', 'Holiday') |
+| `created_by` | INT | FOREIGN KEY → users(id) |
+| `status` | VARCHAR(20) | DEFAULT 'pending' |
+
+---
+
+### productions
+
+Finished goods ready for sale.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | INT | PRIMARY KEY, AUTO_INCREMENT |
+| `name` | VARCHAR(100) | NOT NULL |
+| `quantity` | DOUBLE | DEFAULT 0 |
+| `price` | DOUBLE | DEFAULT 0 |
+| `unit` | VARCHAR(20) | NULL |
+| `status` | VARCHAR(20) | DEFAULT 'No Stock' |
+| `created_at` | TIMESTAMP | DEFAULT CURRENT_TIMESTAMP |
+
+---
+
+### production_ingredients
+
+Mapping of raw materials used in each production run.
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | INT | PRIMARY KEY, AUTO_INCREMENT |
+| `production_id` | INT | FOREIGN KEY → productions(id) |
+| `stock_id` | INT | FOREIGN KEY → stocks(id) |
+| `quantity_used` | DOUBLE | NOT NULL |
+
+---
+
 ## Quick Setup
 
 Run all tables at once:
@@ -263,6 +308,36 @@ CREATE TABLE sales_orders (
     status VARCHAR(20) DEFAULT 'Pending',
     total_amount DOUBLE DEFAULT 0,
     notes TEXT
+);
+
+CREATE TABLE schedule (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(100) NOT NULL,
+    description TEXT,
+    event_date DATE NOT NULL,
+    event_type VARCHAR(50),
+    created_by INT,
+    status VARCHAR(20) DEFAULT 'pending',
+    FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+CREATE TABLE productions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    quantity DOUBLE DEFAULT 0,
+    price DOUBLE DEFAULT 0,
+    unit VARCHAR(20),
+    status VARCHAR(20) DEFAULT 'No Stock',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE production_ingredients (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    production_id INT NOT NULL,
+    stock_id INT NOT NULL,
+    quantity_used DOUBLE NOT NULL,
+    FOREIGN KEY (production_id) REFERENCES productions(id) ON DELETE CASCADE,
+    FOREIGN KEY (stock_id) REFERENCES stocks(id)
 );
 
 INSERT INTO users (username, password, role) VALUES ('admin', 'admin123', 'Admin');

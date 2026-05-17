@@ -1016,11 +1016,22 @@ public class DashboardApplication {
         java.util.Map<Integer, java.util.List<String[]>> events = new java.util.HashMap<>();
         try {
             java.sql.Connection conn = DatabaseConnection.getConnection();
-            String query = "SELECT DAY(event_date) as day, title, event_type FROM schedule " +
-                    "WHERE YEAR(event_date) = ? AND MONTH(event_date) = ?";
+            String query = 
+                    "SELECT DAY(event_date) as day, title, event_type FROM schedule " +
+                    "WHERE YEAR(event_date) = ? AND MONTH(event_date) = ? " +
+                    "UNION ALL " +
+                    "SELECT DAY(s.sale_date) as day, CONCAT('DEL: ', COALESCE(c.name, 'Customer')) as title, 'Delivery' as event_type " +
+                    "FROM sales s " +
+                    "LEFT JOIN customers c ON s.customer_id = c.id " +
+                    "WHERE LOWER(s.order_type) = 'deliver' " +
+                    "AND YEAR(s.sale_date) = ? AND MONTH(s.sale_date) = ?";
+            
             java.sql.PreparedStatement stmt = conn.prepareStatement(query);
             stmt.setInt(1, currentMonth.getYear());
             stmt.setInt(2, currentMonth.getMonthValue());
+            stmt.setInt(3, currentMonth.getYear());
+            stmt.setInt(4, currentMonth.getMonthValue());
+            
             java.sql.ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
                 int d      = rs.getInt("day");
@@ -1029,7 +1040,7 @@ public class DashboardApplication {
                 events.computeIfAbsent(d, k -> new java.util.ArrayList<>()).add(new String[]{ttl, typ});
             }
             conn.close();
-        } catch (Exception e) { LOGGER.log(java.util.logging.Level.SEVERE, "Error", e); }
+        } catch (Exception e) { LOGGER.log(java.util.logging.Level.SEVERE, "Error loading dashboard calendar", e); }
         return events;
     }
 

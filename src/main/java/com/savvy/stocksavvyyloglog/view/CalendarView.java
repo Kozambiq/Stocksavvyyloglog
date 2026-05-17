@@ -347,6 +347,18 @@ public class CalendarView {
         VBox body = new VBox(10);
         body.setPadding(new Insets(18, 20, 18, 20));
 
+        // ── NEW: Read-only notice for Sales Deliveries ────────────────────────
+        boolean isSalesDelivery = evt.id < 0;
+        if (isSalesDelivery) {
+            Label info = new Label("This is an automated delivery entry from Sales. " +
+                    "To modify this, please go to the Sales module.");
+            info.setStyle("-fx-font-family: Sans Serif; -fx-font-size: 11px; " +
+                    "-fx-text-fill: #856404; -fx-background-color: #FFF3CD; " +
+                    "-fx-padding: 8; -fx-background-radius: 5;");
+            info.setWrapText(true);
+            body.getChildren().add(info);
+        }
+
         // Type badge
         HBox metaRow = new HBox(8);
         metaRow.setAlignment(Pos.CENTER_LEFT);
@@ -376,54 +388,57 @@ public class CalendarView {
 
         boolean isCompleted = "completed".equalsIgnoreCase(evt.status);
 
-        if (!isCompleted) {
-            // Mark as completed
-            Button completeBtn = buildPopupBtn(
-                    "✔  Mark as Completed",
-                    "#1B5E20", "#A5D6A7", "#F1F8F1"
-            );
-            completeBtn.setOnAction(e -> {
-                updateScheduleStatus(evt.id, "completed");
+        if (!isSalesDelivery) {
+            if (!isCompleted) {
+                // Mark as completed
+                Button completeBtn = buildPopupBtn(
+                        "✔  Mark as Completed",
+                        "#1B5E20", "#A5D6A7", "#F1F8F1"
+                );
+                completeBtn.setOnAction(e -> {
+                    updateScheduleStatus(evt.id, "completed");
+                    popup.close();
+                    refreshCalendar();
+                });
+                actions.getChildren().add(completeBtn);
+            } else {
+                // Undo completed
+                Button undoBtn = buildPopupBtn(
+                        "↩  Mark as Pending",
+                        TEXT_MUTED, BORDER, CARD_BG
+                );
+                undoBtn.setOnAction(e -> {
+                    updateScheduleStatus(evt.id, "pending");
+                    popup.close();
+                    refreshCalendar();
+                });
+                actions.getChildren().add(undoBtn);
+            }
+
+            // Edit
+            Button editBtn = buildPopupBtn("✎  Edit Schedule", TEXT, BORDER, CARD_BG);
+            editBtn.setOnAction(e -> {
                 popup.close();
+                // Re-open AddScheduleDialog — pass the schedule id so it pre-fills
+                // (you'll need to add an id-aware constructor to AddScheduleDialog)
+                new AddScheduleDialog(ownerStage, currentUser).show();
                 refreshCalendar();
             });
-            actions.getChildren().add(completeBtn);
-        } else {
-            // Undo completed
-            Button undoBtn = buildPopupBtn(
-                    "↩  Mark as Pending",
-                    TEXT_MUTED, BORDER, CARD_BG
-            );
-            undoBtn.setOnAction(e -> {
-                updateScheduleStatus(evt.id, "pending");
+
+            // Divider label
+            Label divLbl = new Label("────────────────────");
+            divLbl.setStyle("-fx-text-fill: " + BORDER + "; -fx-font-size: 9px;");
+
+            // Remove
+            Button removeBtn = buildPopupBtn("🗑  Remove Schedule", "#B71C1C", "#EF9A9A", "#FFF5F5");
+            removeBtn.setOnAction(e -> {
                 popup.close();
-                refreshCalendar();
+                showRemoveConfirmation(evt);
             });
-            actions.getChildren().add(undoBtn);
+
+            actions.getChildren().addAll(editBtn, divLbl, removeBtn);
         }
 
-        // Edit
-        Button editBtn = buildPopupBtn("✎  Edit Schedule", TEXT, BORDER, CARD_BG);
-        editBtn.setOnAction(e -> {
-            popup.close();
-            // Re-open AddScheduleDialog — pass the schedule id so it pre-fills
-            // (you'll need to add an id-aware constructor to AddScheduleDialog)
-            new AddScheduleDialog(ownerStage, currentUser).show();
-            refreshCalendar();
-        });
-
-        // Divider label
-        Label divLbl = new Label("────────────────────");
-        divLbl.setStyle("-fx-text-fill: " + BORDER + "; -fx-font-size: 9px;");
-
-        // Remove
-        Button removeBtn = buildPopupBtn("🗑  Remove Schedule", "#B71C1C", "#EF9A9A", "#FFF5F5");
-        removeBtn.setOnAction(e -> {
-            popup.close();
-            showRemoveConfirmation(evt);
-        });
-
-        actions.getChildren().addAll(editBtn, divLbl, removeBtn);
         body.getChildren().add(actions);
 
         popupLayout.getChildren().addAll(header, body);
@@ -587,15 +602,27 @@ public class CalendarView {
      */
     private java.util.Map<Integer, java.util.List<ScheduleEvent>> loadEventsForMonth() {
         java.util.Map<Integer, java.util.List<ScheduleEvent>> map = new java.util.HashMap<>();
-        String sql = "SELECT id, DAY(event_date) AS day, event_date, title, event_type, " +
+        String sql = 
+                "SELECT id, DAY(event_date) AS day, event_date, title, event_type, " +
                 "COALESCE(status, 'pending') AS status " +
                 "FROM schedule " +
                 "WHERE YEAR(event_date) = ? AND MONTH(event_date) = ? " +
+                "UNION ALL " +
+                "SELECT -s.id as id, DAY(s.sale_date) AS day, s.sale_date as event_date, CONCAT('DEL: ', COALESCE(c.name, 'Customer')) as title, 'Delivery' as event_type, " +
+                "CASE WHEN s.status = 'Complete' THEN 'completed' ELSE 'pending' END as status " +
+                "FROM sales s " +
+                "LEFT JOIN customers c ON s.customer_id = c.id " +
+                "WHERE LOWER(s.order_type) = 'deliver' " +
+                "AND YEAR(s.sale_date) = ? AND MONTH(s.sale_date) = ? " +
                 "ORDER BY event_date, id";
+        
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, currentMonth.getYear());
             ps.setInt(2, currentMonth.getMonthValue());
+            ps.setInt(3, currentMonth.getYear());
+            ps.setInt(4, currentMonth.getMonthValue());
+            
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
                 ScheduleEvent evt = new ScheduleEvent(
