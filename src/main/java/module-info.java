@@ -3,6 +3,8 @@ module com.savvy.stocksavvyyloglog {
     requires javafx.fxml;
     requires java.sql;
     requires java.prefs;
+    requires java.net.http;
+    requires com.google.gson;
 
     exports com.savvy.stocksavvyyloglog.controller;
     opens   com.savvy.stocksavvyyloglog.controller to javafx.fxml;

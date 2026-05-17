@@ -1,11 +1,19 @@
 package com.savvy.stocksavvyyloglog.view;
 
+import com.savvy.stocksavvyyloglog.model.SaleDAO;
+import com.savvy.stocksavvyyloglog.model.StockDAO;
+import com.savvy.stocksavvyyloglog.model.Stock;
+import com.savvy.stocksavvyyloglog.util.ChatbotService;
+import javafx.application.Platform;
+import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
+
+import java.util.List;
 
 public class ReportsView {
 
@@ -20,6 +28,12 @@ public class ReportsView {
 
     private final BorderPane rootPane;
     private final String currentUser;
+    private final SaleDAO saleDAO = new SaleDAO();
+    private final StockDAO stockDAO = new StockDAO();
+    private final ChatbotService chatbotService = new ChatbotService();
+
+    private VBox chatHistoryBox;
+    private ScrollPane chatScrollPane;
 
     public ReportsView(BorderPane rootPane, String currentUser) {
         this.rootPane = rootPane;
@@ -66,21 +80,35 @@ public class ReportsView {
     }
 
     private HBox createSummaryCards() {
+        SaleDAO.SaleSummary saleSummary = saleDAO.getSummary();
+        
+        // Calculate raw material cost (sum of cost * quantity for all stocks)
+        double totalMaterialCost = stockDAO.getAllStocks().stream()
+                .mapToDouble(s -> s.getCostPerUnit() * s.getQuantity())
+                .sum();
+
+        // Get top material usage (based on stock in logs or just most frequent stock item)
+        // For simplicity, we'll use the item with the highest total value
+        String topMaterial = stockDAO.getAllStocks().stream()
+                .max((s1, s2) -> Double.compare(s1.getQuantity() * s1.getCostPerUnit(), s2.getQuantity() * s2.getCostPerUnit()))
+                .map(Stock::getProductName)
+                .orElse("N/A");
+
         HBox cards = new HBox(0);
         cards.setMaxWidth(Double.MAX_VALUE);
 
         VBox totalSalesCard = createStatCard(
                 "\uD83D\uDCB0",
                 "Total Sales",
-                "₱0.00",
+                String.format("₱%.2f", saleSummary.totalRevenue),
                 L_ACCENT,
                 true
         );
 
         VBox rawMaterialCostCard = createStatCard(
                 "\uD83D\uDCE6",
-                "Raw Material Cost",
-                "₱0.00",
+                "Raw Material Value",
+                String.format("₱%.2f", totalMaterialCost),
                 "#B85C00",
                 false
         );
@@ -88,15 +116,15 @@ public class ReportsView {
         VBox bestSellingCard = createStatCard(
                 "\uD83C\uDFC6",
                 "Best Selling Produce",
-                "N/A",
+                saleSummary.topProduct,
                 "#4A7C4E",
                 false
         );
 
         VBox topMaterialCard = createStatCard(
                 "\uD83D\uDCA1",
-                "Top Material Usage",
-                "N/A",
+                "Most Valued Material",
+                topMaterial,
                 "#5A5A8A",
                 false
         );
@@ -134,7 +162,7 @@ public class ReportsView {
         Label valueLabel = new Label(value);
         valueLabel.setStyle(
                 "-fx-font-family: Sans Serif; " +
-                        "-fx-font-size: " + (title.equals("Best Selling Produce") || title.equals("Top Material Usage") ? "16" : "26") + "px; " +
+                        "-fx-font-size: " + (title.equals("Best Selling Produce") || title.equals("Most Valued Material") ? "16" : "26") + "px; " +
                         "-fx-font-weight: bold; -fx-text-fill: " + accentColor + ";"
         );
 
@@ -156,7 +184,7 @@ public class ReportsView {
         );
         container.setPadding(new Insets(20));
         container.setMaxWidth(Double.MAX_VALUE);
-        container.setMinHeight(250);
+        container.setMinHeight(400);
 
         HBox header = new HBox(10);
         header.setAlignment(Pos.CENTER_LEFT);
@@ -181,23 +209,20 @@ public class ReportsView {
 
         header.getChildren().addAll(botIcon, botTitle, headerSpacer, statusDot, statusText);
 
-        VBox chatArea = new VBox(10);
-        chatArea.setStyle(
-                "-fx-background-color: #FFFFFF; " +
-                        "-fx-border-color: " + L_BORDER + "; -fx-border-width: 1; " +
-                        "-fx-background-radius: 8; -fx-border-radius: 8;"
-        );
-        chatArea.setPadding(new Insets(16));
-        chatArea.setPrefHeight(120);
+        chatHistoryBox = new VBox(10);
+        chatHistoryBox.setStyle("-fx-background-color: white;");
+        chatHistoryBox.setPadding(new Insets(10));
 
-        Label placeholder = new Label("Ask me anything about your business...\n\nTry: 'Show sales this month' or 'What products are selling best?'");
-        placeholder.setStyle(
-                "-fx-font-family: Sans Serif; -fx-font-size: 13px; -fx-text-fill: " + L_TEXT_MUTED + ";"
-        );
-        placeholder.setWrapText(true);
+        Label welcomeMsg = new Label("Hello! I'm your Business Insights Assistant. Ask me anything about your sales, inventory, or production.");
+        welcomeMsg.setWrapText(true);
+        welcomeMsg.setStyle("-fx-font-family: Sans Serif; -fx-font-size: 13px; -fx-text-fill: " + L_TEXT + ";");
+        addChatMessage("assistant", welcomeMsg.getText());
 
-        chatArea.getChildren().add(placeholder);
-
+        chatScrollPane = new ScrollPane(chatHistoryBox);
+        chatScrollPane.setFitToWidth(true);
+        chatScrollPane.setPrefHeight(300);
+        chatScrollPane.setStyle("-fx-background-color: white; -fx-border-color: " + L_BORDER + "; -fx-border-radius: 8; -fx-background-radius: 8;");
+        
         HBox inputRow = new HBox(10);
         inputRow.setAlignment(Pos.CENTER_LEFT);
 
@@ -242,9 +267,83 @@ public class ReportsView {
                         "-fx-padding: 8 14;"
         );
 
+        // Actions
+        sendBtn.setOnAction(e -> handleSendMessage(inputField));
+        inputField.setOnAction(e -> handleSendMessage(inputField));
+        
+        clearBtn.setOnAction(e -> {
+            chatHistoryBox.getChildren().clear();
+            chatbotService.clearHistory();
+            addChatMessage("assistant", "Chat history cleared. How can I help you today?");
+        });
+
         inputRow.getChildren().addAll(inputField, sendBtn, clearBtn);
 
-        container.getChildren().addAll(header, chatArea, inputRow);
+        container.getChildren().addAll(header, chatScrollPane, inputRow);
         return container;
+    }
+
+    private void handleSendMessage(TextField inputField) {
+        String msg = inputField.getText().trim();
+        if (msg.isEmpty()) return;
+
+        inputField.clear();
+        addChatMessage("user", msg);
+
+        // Show typing indicator
+        Label typingLabel = new Label("Assistant is thinking...");
+        typingLabel.setStyle("-fx-font-family: Sans Serif; -fx-font-size: 12px; -fx-text-fill: " + L_TEXT_MUTED + "; -fx-font-style: italic;");
+        chatHistoryBox.getChildren().add(typingLabel);
+        scrollToBottom();
+
+        Task<String> task = new Task<>() {
+            @Override
+            protected String call() throws Exception {
+                return chatbotService.askChatbot(msg);
+            }
+        };
+
+        task.setOnSucceeded(e -> {
+            chatHistoryBox.getChildren().remove(typingLabel);
+            addChatMessage("assistant", task.getValue());
+            scrollToBottom();
+        });
+
+        task.setOnFailed(e -> {
+            chatHistoryBox.getChildren().remove(typingLabel);
+            addChatMessage("assistant", "Sorry, I encountered an error: " + task.getException().getMessage());
+            scrollToBottom();
+            task.getException().printStackTrace();
+        });
+
+        new Thread(task).start();
+    }
+
+    private void addChatMessage(String role, String content) {
+        VBox messageBox = new VBox(5);
+        messageBox.setPadding(new Insets(8, 12, 8, 12));
+        messageBox.setMaxWidth(Double.MAX_VALUE);
+
+        Label roleLabel = new Label(role.equalsIgnoreCase("user") ? "You" : "Assistant");
+        roleLabel.setStyle("-fx-font-family: Sans Serif; -fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: " + L_TEXT_MUTED + ";");
+
+        Label contentLabel = new Label(content);
+        contentLabel.setWrapText(true);
+        contentLabel.setStyle("-fx-font-family: Sans Serif; -fx-font-size: 13px; -fx-text-fill: " + L_TEXT + ";");
+
+        if (role.equalsIgnoreCase("user")) {
+            messageBox.setStyle("-fx-background-color: #F0F0F0; -fx-background-radius: 8;");
+            messageBox.setAlignment(Pos.TOP_LEFT);
+        } else {
+            messageBox.setStyle("-fx-background-color: #E8F0FE; -fx-background-radius: 8;");
+            messageBox.setAlignment(Pos.TOP_LEFT);
+        }
+
+        messageBox.getChildren().addAll(roleLabel, contentLabel);
+        chatHistoryBox.getChildren().add(messageBox);
+    }
+
+    private void scrollToBottom() {
+        Platform.runLater(() -> chatScrollPane.setVvalue(1.0));
     }
 }
