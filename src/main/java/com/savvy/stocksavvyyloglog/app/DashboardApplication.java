@@ -181,6 +181,11 @@ public class DashboardApplication {
                 new CalendarView(stage, root, currentUser).show()
         );
 
+        // ── Wire up Reports → ReportsView ──────────────────────────────────────
+        reportsBtn.setOnAction(e ->
+                new com.savvy.stocksavvyyloglog.view.ReportsView(root, currentUser).show()
+        );
+
         HBox rightNav = new HBox(6);
         rightNav.setAlignment(Pos.CENTER_RIGHT);
         rightNav.setPadding(new Insets(0, 24, 0, 0));
