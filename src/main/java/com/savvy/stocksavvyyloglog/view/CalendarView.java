@@ -144,9 +144,10 @@ public class CalendarView {
 
         legend.getChildren().addAll(
                 legendPill("Delivery",   "#4A7C4E"),
+                legendPill("Pickup",     "#5A5A8A"),
+                legendPill("Cancelled",  "#C0392B"),
                 legendPill("Production", "#C8A96E"),
                 legendPill("Holiday",    "#B85C00"),
-                legendPill("Other",      "#6B7080"),
                 legendPill("Completed",  "#AAAAAA")
         );
         return legend;
@@ -608,11 +609,15 @@ public class CalendarView {
                 "FROM schedule " +
                 "WHERE YEAR(event_date) = ? AND MONTH(event_date) = ? " +
                 "UNION ALL " +
-                "SELECT -s.id as id, DAY(s.sale_date) AS day, s.sale_date as event_date, CONCAT('DEL: ', COALESCE(c.name, 'Customer')) as title, 'Delivery' as event_type, " +
+                "SELECT -s.id as id, DAY(s.sale_date) AS day, s.sale_date as event_date, " +
+                "CONCAT(CASE WHEN LOWER(s.order_type) = 'deliver' THEN 'DEL: ' ELSE 'PKP: ' END, COALESCE(c.name, 'Customer')) as title, " +
+                "CASE WHEN s.status = 'Cancelled' THEN 'Cancelled' " +
+                "     WHEN LOWER(s.order_type) = 'deliver' THEN 'Delivery' " +
+                "     ELSE 'Pickup' END as event_type, " +
                 "CASE WHEN s.status = 'Complete' THEN 'completed' ELSE 'pending' END as status " +
                 "FROM sales s " +
                 "LEFT JOIN customers c ON s.customer_id = c.id " +
-                "WHERE LOWER(s.order_type) = 'deliver' " +
+                "WHERE LOWER(s.order_type) IN ('deliver', 'pickup') " +
                 "AND YEAR(s.sale_date) = ? AND MONTH(s.sale_date) = ? " +
                 "ORDER BY event_date, id";
         
@@ -646,7 +651,9 @@ public class CalendarView {
     private String getEventColor(String type) {
         if (type == null) return ACCENT;
         switch (type) {
-            case "Delivery":   return "#4A7C4E";
+            case "Delivery":  return "#4A7C4E";
+            case "Pickup":    return "#5A5A8A";
+            case "Cancelled": return "#C0392B";
             case "Production": return "#C8A96E";
             case "Holiday":    return "#B85C00";
             default:           return "#6B7080";

@@ -1005,7 +1005,9 @@ public class DashboardApplication {
     private String getEventColor(String type) {
         if (type == null) return "#C04A10";
         switch (type) {
-            case "Delivery":   return "#4A7C4E";
+            case "Delivery":  return "#4A7C4E"; // Green
+            case "Pickup":    return "#5A5A8A"; // Purple/Blue
+            case "Cancelled": return "#C0392B"; // Red
             case "Production": return "#C8A96E";
             case "Holiday":    return "#B85C00";
             default:           return "#6B7080";
@@ -1020,10 +1022,14 @@ public class DashboardApplication {
                     "SELECT DAY(event_date) as day, title, event_type FROM schedule " +
                     "WHERE YEAR(event_date) = ? AND MONTH(event_date) = ? " +
                     "UNION ALL " +
-                    "SELECT DAY(s.sale_date) as day, CONCAT('DEL: ', COALESCE(c.name, 'Customer')) as title, 'Delivery' as event_type " +
+                    "SELECT DAY(s.sale_date) as day, " +
+                    "CONCAT(CASE WHEN LOWER(s.order_type) = 'deliver' THEN 'DEL: ' ELSE 'PKP: ' END, COALESCE(c.name, 'Customer')) as title, " +
+                    "CASE WHEN s.status = 'Cancelled' THEN 'Cancelled' " +
+                    "     WHEN LOWER(s.order_type) = 'deliver' THEN 'Delivery' " +
+                    "     ELSE 'Pickup' END as event_type " +
                     "FROM sales s " +
                     "LEFT JOIN customers c ON s.customer_id = c.id " +
-                    "WHERE LOWER(s.order_type) = 'deliver' " +
+                    "WHERE LOWER(s.order_type) IN ('deliver', 'pickup') " +
                     "AND YEAR(s.sale_date) = ? AND MONTH(s.sale_date) = ?";
             
             java.sql.PreparedStatement stmt = conn.prepareStatement(query);
