@@ -388,4 +388,3 @@ ALTER TABLE sales_items
     ADD COLUMN unit_price DOUBLE NOT NULL AFTER quantity,
     ADD COLUMN subtotal DOUBLE DEFAULT 0 AFTER unit_price;
 ```
-

@@ -30,14 +30,12 @@ public class LoginApplication extends Application {
     private static final Preferences PREFS         = Preferences.userNodeForPackage(LoginApplication.class);
     private static final String      PREF_USER     = "saved_username";
     private static final String      PREF_PASS     = "saved_password";
-    private static final String      PREF_ROLE     = "saved_role";
     private static final String      PREF_REMEMBER = "stay_signed_in";
 
     // ── Theme tokens ───────────────────────────────────────────────────────────
     private static final String ACCENT       = "#C04A10";
     private static final String ACCENT_DARK  = "#A03A0A";
     private static final String CREAM_BG     = "#FDF5EC";
-    private static final String CREAM_TOGGLE = "#F5E6D3";
     private static final String CARD_LIGHT   = "#FFFFFF";
     private static final String BORDER_LIGHT = "#E8D8C0";
     private static final String TEXT_LIGHT   = "#2A1A08";
@@ -56,9 +54,6 @@ public class LoginApplication extends Application {
     private Text          subText;
     private Text          copyright;
     private Label         errorLabel;
-    private HBox          toggleBar;
-    private ToggleButton  adminBtn;
-    private ToggleButton  staffBtn;
     private Button        signInBtn;
 
     @Override
@@ -92,18 +87,12 @@ public class LoginApplication extends Application {
         if (remember) {
             String savedUser = PREFS.get(PREF_USER, "");
             String savedPass = PREFS.get(PREF_PASS, "");
-            String savedRole = PREFS.get(PREF_ROLE, "Admin");
 
             if (!savedUser.isEmpty() && !savedPass.isEmpty()) {
                 usernameField.setText(savedUser);
                 passwordField.setText(savedPass);
                 passwordVisible.setText(savedPass);
                 staySignedIn.setSelected(true);
-                if ("Staff".equals(savedRole)) {
-                    staffBtn.setSelected(true);
-                } else {
-                    adminBtn.setSelected(true);
-                }
             }
         }
     }
@@ -222,24 +211,6 @@ public class LoginApplication extends Application {
         VBox cardHeader = new VBox(4, welcome, subText);
         cardHeader.setPadding(new Insets(0, 0, 22, 0));
 
-        // Role toggle
-        ToggleGroup roleGroup = new ToggleGroup();
-        adminBtn = roleToggleBtn("Admin", roleGroup, true);
-        staffBtn = roleToggleBtn("Staff",  roleGroup, false);
-        adminBtn.setMaxWidth(Double.MAX_VALUE);
-        staffBtn.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(adminBtn, Priority.ALWAYS);
-        HBox.setHgrow(staffBtn, Priority.ALWAYS);
-
-        toggleBar = new HBox(0, adminBtn, staffBtn);
-        toggleBar.setMaxWidth(Double.MAX_VALUE);
-        toggleBar.setStyle(
-                "-fx-background-color: " + CREAM_TOGGLE + "; " +
-                        "-fx-background-radius: 9; -fx-padding: 3;"
-        );
-        VBox toggleBox = new VBox(toggleBar);
-        toggleBox.setPadding(new Insets(0, 0, 20, 0));
-
         // Username
         usernameLabel = fieldLabel("USERNAME");
         usernameField = new TextField();
@@ -302,7 +273,6 @@ public class LoginApplication extends Application {
             if (!nv) {
                 PREFS.remove(PREF_USER);
                 PREFS.remove(PREF_PASS);
-                PREFS.remove(PREF_ROLE);
                 PREFS.putBoolean(PREF_REMEMBER, false);
                 savedBadge.setVisible(false);
             }
@@ -333,7 +303,6 @@ public class LoginApplication extends Application {
         signInBtn.setOnAction(e -> {
             String user = usernameField.getText().trim();
             String pass = showing[0] ? passwordVisible.getText() : passwordField.getText();
-            String role = adminBtn.isSelected() ? "Admin" : "Staff";
 
             if (user.isEmpty() || pass.trim().isEmpty()) {
                 showError("Please fill in all fields.");
@@ -344,22 +313,20 @@ public class LoginApplication extends Application {
             if (staySignedIn.isSelected()) {
                 PREFS.put(PREF_USER, user);
                 PREFS.put(PREF_PASS, pass);
-                PREFS.put(PREF_ROLE, role);
                 PREFS.putBoolean(PREF_REMEMBER, true);
                 savedBadge.setVisible(true);
             } else {
                 PREFS.remove(PREF_USER);
                 PREFS.remove(PREF_PASS);
-                PREFS.remove(PREF_ROLE);
                 PREFS.putBoolean(PREF_REMEMBER, false);
                 savedBadge.setVisible(false);
             }
 
-            attemptLogin(stage, user, pass, role);
+            attemptLogin(stage, user, pass);
         });
 
         card.getChildren().addAll(
-                cardHeader, toggleBox,
+                cardHeader,
                 usernameBox, passwordBox,
                 checkRow, errorLabel, signInBtn
         );
@@ -378,7 +345,7 @@ public class LoginApplication extends Application {
     }
 
     // ── Core login logic ──────────────────────────────────────────────────────
-    private void attemptLogin(Stage stage, String user, String pass, String role) {
+    private void attemptLogin(Stage stage, String user, String pass) {
         signInBtn.setDisable(true);
         signInBtn.setText("Signing in...");
 
@@ -388,11 +355,10 @@ public class LoginApplication extends Application {
             System.out.println("Connected.");
 
             java.sql.PreparedStatement stmt = conn.prepareStatement(
-                    "SELECT * FROM users WHERE username=? AND password=? AND role=?"
+                    "SELECT * FROM users WHERE username=? AND password=?"
             );
             stmt.setString(1, user);
             stmt.setString(2, pass);
-            stmt.setString(3, role);
 
             java.sql.ResultSet rs = stmt.executeQuery();
 
@@ -406,10 +372,9 @@ public class LoginApplication extends Application {
                 System.out.println("Invalid credentials.");
                 PREFS.remove(PREF_USER);
                 PREFS.remove(PREF_PASS);
-                PREFS.remove(PREF_ROLE);
                 PREFS.putBoolean(PREF_REMEMBER, false);
                 if (staySignedIn != null) staySignedIn.setSelected(false);
-                showError("Incorrect username, password, or role.");
+                showError("Incorrect username or password.");
                 conn.close();
             }
 
@@ -443,38 +408,6 @@ public class LoginApplication extends Application {
             ex.printStackTrace();
             showError("Failed to open dashboard. Contact support.");
         }
-    }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
-    private ToggleButton roleToggleBtn(String label, ToggleGroup group, boolean selected) {
-        ToggleButton btn = new ToggleButton(label);
-        btn.setToggleGroup(group);
-        btn.setSelected(selected);
-        String activeStyle =
-                "-fx-font-family: Sans Serif; -fx-font-size: 13px; -fx-font-weight: bold; " +
-                        "-fx-text-fill: white; -fx-background-color: " + ACCENT + "; " +
-                        "-fx-background-radius: 7; -fx-cursor: hand; -fx-padding: 8 0;";
-        String inactiveStyle =
-                "-fx-font-family: Sans Serif; -fx-font-size: 13px; " +
-                        "-fx-text-fill: " + MUTED_LIGHT + "; -fx-background-color: transparent; " +
-                        "-fx-background-radius: 7; -fx-cursor: hand; -fx-padding: 8 0;";
-        btn.setStyle(selected ? activeStyle : inactiveStyle);
-        btn.selectedProperty().addListener((o, ov, nv) -> refreshRoleButtons());
-        return btn;
-    }
-
-    private void refreshRoleButtons() {
-        String activeStyle =
-                "-fx-font-family: Sans Serif; -fx-font-size: 13px; -fx-font-weight: bold; " +
-                        "-fx-text-fill: white; -fx-background-color: " + ACCENT + "; " +
-                        "-fx-background-radius: 7; -fx-cursor: hand; -fx-padding: 8 0;";
-        String inactiveStyle =
-                "-fx-font-family: Sans Serif; -fx-font-size: 13px; " +
-                        "-fx-text-fill: " + MUTED_LIGHT + "; " +
-                        "-fx-background-color: transparent; " +
-                        "-fx-background-radius: 7; -fx-cursor: hand; -fx-padding: 8 0;";
-        adminBtn.setStyle(adminBtn.isSelected() ? activeStyle : inactiveStyle);
-        staffBtn.setStyle(staffBtn.isSelected()  ? activeStyle : inactiveStyle);
     }
 
     private Label fieldLabel(String text) {
