@@ -445,17 +445,11 @@ public class InventoryView {
 
         // ── Form fields ───────────────────────────────────────────────────────
         TextField fName     = styledField("Product Name *",        isEdit ? existing.getProductName() : "");
-        ComboBox<String> cbCategory = new ComboBox<>();
-        cbCategory.setEditable(true);
-        HBox fCategory = createCustomComboBox(cbCategory, "Category", false);
-
+        TextField fCategory = styledField("Category",              isEdit ? existing.getCategory()    : "");
         TextField fQty      = styledField("Quantity *",            isEdit ? existing.getQuantity()    : "");
         TextField fUnit     = styledField("Unit (e.g. kg, pcs) *", isEdit ? existing.getUnit()        : "");
         TextField fCost     = styledField("Cost per Unit (₱)",     isEdit ? existing.getCostPerUnit().replace("₱","") : "");
-
-        ComboBox<String> cbSupplier = new ComboBox<>();
-        cbSupplier.setEditable(true);
-        HBox fSupplier = createCustomComboBox(cbSupplier, "Supplier", false);
+        TextField fSupplier = styledField("Supplier",              isEdit ? existing.getSupplier()    : "");
 
         TextField fDate     = styledField("YYYY-MM-DD",
                 isEdit ? existing.getDateReceived() : LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE));
@@ -466,13 +460,7 @@ public class InventoryView {
         fNotes.setWrapText(true);
         fNotes.setStyle(inputStyle());
 
-        setupEditAutocomplete(cbCategory, cbSupplier);
-
-        // PREFILL: Set editor text AFTER setup to ensure it's handled by recursion guard
-        if (isEdit) {
-            cbCategory.getEditor().setText(existing.getCategory());
-            cbSupplier.getEditor().setText(existing.getSupplier());
-        }
+        setupEditAutocomplete(fCategory, fSupplier);
 
         // Error labels
         Label errName = errorLabel("Please enter a product name.");
@@ -558,8 +546,8 @@ public class InventoryView {
             String unit    = fUnit.getText().trim();
             String costStr = fCost.getText().trim();
             String lowStr  = fLowStock.getText().trim();
-            String catVal  = cbCategory.getEditor().getText().trim();
-            String supVal  = cbSupplier.getEditor().getText().trim();
+            String catVal  = fCategory.getText().trim();
+            String supVal  = fSupplier.getText().trim();
 
             validateEditCost(fCost, errCost);
             validateEditLowStock(fQty, fLowStock, errLow);
@@ -618,7 +606,7 @@ public class InventoryView {
         dialog.show();
     }
 
-    private void setupEditAutocomplete(ComboBox<String> cbCat, ComboBox<String> cbSup) {
+    private void setupEditAutocomplete(TextField fCat, TextField fSup) {
         java.util.List<String> sups = new java.util.ArrayList<>();
         java.util.List<String> cats = new java.util.ArrayList<>();
 
@@ -629,38 +617,47 @@ public class InventoryView {
             while (rs.next()) cats.add(rs.getString(1));
         } catch (Exception e) { e.printStackTrace(); }
 
-        setupSingleAutocomplete(cbSup, sups);
-        setupSingleAutocomplete(cbCat, cats);
+        setupSingleAutocomplete(fSup, sups);
+        setupSingleAutocomplete(fCat, cats);
     }
 
-    private void setupSingleAutocomplete(ComboBox<String> cb, java.util.List<String> items) {
-        cb.getItems().setAll(items);
-        final boolean[] isUpdating = {false};
-        cb.getEditor().textProperty().addListener((obs, oldV, newV) -> {
-            if (isUpdating[0]) return;
-            if (cb.isShowing() && cb.getSelectionModel().getSelectedIndex() != -1) return;
+    private void setupSingleAutocomplete(TextField tf, java.util.List<String> items) {
+        ContextMenu suggestionsMenu = new ContextMenu();
+        // Set fixed width to match field if possible, or let it be automatic
+        suggestionsMenu.setPrefWidth(200);
 
-            // FIX: Don't trim immediately to allow spacebar input
-            if (newV == null || newV.isEmpty()) {
-                isUpdating[0] = true;
-                cb.getItems().setAll(items);
-                cb.hide();
-                isUpdating[0] = false;
-            } else {
-                String filter = newV.toLowerCase();
-                java.util.List<String> filtered = new java.util.ArrayList<>();
-                for (String s : items) if (s.toLowerCase().contains(filter)) filtered.add(s);
-                
-                isUpdating[0] = true;
-                cb.getItems().setAll(filtered);
-                // FIX: Only show if the field is focused (prevent auto-open on popup load)
-                if (filtered.isEmpty()) {
-                    cb.hide();
-                } else if (cb.getEditor().isFocused()) {
-                    cb.show();
-                }
-                isUpdating[0] = false;
+        tf.textProperty().addListener((obs, oldV, newV) -> {
+            String filter = newV == null ? "" : newV.toLowerCase().trim();
+            if (filter.isEmpty()) {
+                suggestionsMenu.hide();
+                return;
             }
+
+            java.util.List<MenuItem> matches = new java.util.ArrayList<>();
+            for (String s : items) {
+                if (s.toLowerCase().contains(filter)) {
+                    MenuItem item = new MenuItem(s);
+                    item.setOnAction(e -> {
+                        tf.setText(s);
+                        tf.positionCaret(s.length());
+                        suggestionsMenu.hide();
+                    });
+                    matches.add(item);
+                }
+            }
+
+            if (!matches.isEmpty()) {
+                suggestionsMenu.getItems().setAll(matches);
+                if (!suggestionsMenu.isShowing()) {
+                    suggestionsMenu.show(tf, javafx.geometry.Side.BOTTOM, 0, 0);
+                }
+            } else {
+                suggestionsMenu.hide();
+            }
+        });
+
+        tf.focusedProperty().addListener((obs, oldV, newVal) -> {
+            if (!newVal) suggestionsMenu.hide();
         });
     }
 

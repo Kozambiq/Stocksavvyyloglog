@@ -68,7 +68,7 @@ public class NewSaleView {
     private String errorFg()   { return darkMode ? D_ERROR_FG   : L_ERROR_FG;   }
 
     // ── Form fields (public for controller access across packages) ────────────
-    public ComboBox<String> cbCustomerName;
+    public TextField        tfCustomerName;
     public TextField        tfProduct;
     public MenuButton       mbProductDropdown;
     public ComboBox<String> cbOrderType;
@@ -230,20 +230,20 @@ public class NewSaleView {
 
     // ── Customer Row ──────────────────────────────────────────────────────────
     private VBox buildCustomerRow() {
-        cbCustomerName = new ComboBox<>();
-        cbCustomerName.setEditable(true);
-        cbCustomerName.setPromptText("— Select or type customer —");
-        cbCustomerName.setMaxWidth(Double.MAX_VALUE);
-        styleInput(cbCustomerName);
-        cbCustomerName.valueProperty().addListener((o, ov, nv) ->
-                clearError(cbCustomerName, errCustomer));
+        tfCustomerName = new TextField();
+        tfCustomerName.setPromptText("\u2014 Select or type customer \u2014");
+        tfCustomerName.setMaxWidth(Double.MAX_VALUE);
+        styleInput(tfCustomerName);
+        tfCustomerName.textProperty().addListener((o, ov, nv) ->
+                clearError(tfCustomerName, errCustomer));
 
         errCustomer = errorLabel("Customer name is required.");
 
         VBox box = new VBox(5);
-        box.getChildren().addAll(fieldLabel("Customer Name *"), cbCustomerName, errCustomer);
+        box.getChildren().addAll(fieldLabel("Customer Name *"), tfCustomerName, errCustomer);
         return box;
     }
+
 
     // ── Product Row ───────────────────────────────────────────────────────────
     private HBox buildProductRow() {
@@ -505,8 +505,8 @@ public class NewSaleView {
     public boolean validateInputs() {
         boolean valid = true;
 
-        if (cbCustomerName.getValue() == null || cbCustomerName.getValue().trim().isEmpty()) {
-            showError(cbCustomerName, errCustomer);
+        if (tfCustomerName.getText() == null || tfCustomerName.getText().trim().isEmpty()) {
+            showError(tfCustomerName, errCustomer);
             valid = false;
         }
 
@@ -543,7 +543,7 @@ public class NewSaleView {
 
     // ── Clear form ────────────────────────────────────────────────────────────
     public void clearForm() {
-        cbCustomerName.setValue(null);
+        tfCustomerName.clear();
         tfProduct.clear();
         cbOrderType.setValue("pickup");
         tfQuantity.setText("1");
@@ -555,11 +555,50 @@ public class NewSaleView {
         taNotes.clear();
         totalLabel.setText("Total: \u20B10.00");
         setVisible(previewBox, false);
-        clearError(cbCustomerName, errCustomer);
+        clearError(tfCustomerName, errCustomer);
         clearError(tfProduct, errProduct);
         clearError(cbOrderType, errOrderType);
         clearError(tfUnitPrice, errPrice);
         clearError(tfDeliveryFee, errDeliveryFee);
+    }
+
+    public void setupAutocomplete(TextField tf, java.util.List<String> items) {
+        ContextMenu suggestionsMenu = new ContextMenu();
+        suggestionsMenu.setPrefWidth(200);
+
+        tf.textProperty().addListener((obs, oldV, newV) -> {
+            String filter = newV == null ? "" : newV.toLowerCase().trim();
+            if (filter.isEmpty()) {
+                suggestionsMenu.hide();
+                return;
+            }
+
+            java.util.List<MenuItem> matches = new java.util.ArrayList<>();
+            for (String s : items) {
+                if (s.toLowerCase().contains(filter)) {
+                    MenuItem item = new MenuItem(s);
+                    item.setOnAction(e -> {
+                        tf.setText(s);
+                        tf.positionCaret(s.length());
+                        suggestionsMenu.hide();
+                    });
+                    matches.add(item);
+                }
+            }
+
+            if (!matches.isEmpty()) {
+                suggestionsMenu.getItems().setAll(matches);
+                if (!suggestionsMenu.isShowing()) {
+                    suggestionsMenu.show(tf, javafx.geometry.Side.BOTTOM, 0, 0);
+                }
+            } else {
+                suggestionsMenu.hide();
+            }
+        });
+
+        tf.focusedProperty().addListener((obs, oldV, newVal) -> {
+            if (!newVal) suggestionsMenu.hide();
+        });
     }
 
     // ── Show success banner ───────────────────────────────────────────────────

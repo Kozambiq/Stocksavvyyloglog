@@ -54,9 +54,9 @@ public class NewSaleController {
 
     /** Pre-fills the dialog with existing sale data. */
     public void populateFields(SaleDAO.SaleRow row) {
-        if (view.cbCustomerName == null) return; // safety
+        if (view.tfCustomerName == null) return; // safety
 
-        view.cbCustomerName.setValue(row.customerName);
+        view.tfCustomerName.setText(row.customerName);
         view.tfProduct.setText(row.productName);
         view.tfQuantity.setText(String.format("%.0f", row.quantity));
         view.tfUnitPrice.setText(String.format("%.2f", row.unitPrice));
@@ -109,7 +109,7 @@ public class NewSaleController {
 
         // Customers from customers table
         java.util.List<String> customers = dao.getCustomerNames();
-        view.cbCustomerName.getItems().setAll(customers);
+        view.setupAutocomplete(view.tfCustomerName, customers);
     }
 
     // ── Confirm ───────────────────────────────────────────────────────────────
@@ -136,10 +136,7 @@ public class NewSaleController {
     // ── Collect form → model ──────────────────────────────────────────────────
 
     private void collectFormData() {
-        String customerName = view.cbCustomerName.getValue();
-        if (customerName == null || customerName.trim().isEmpty()) {
-            customerName = view.cbCustomerName.getEditor().getText();
-        }
+        String customerName = view.tfCustomerName.getText().trim();
         model.setCustomerName(customerName);
         model.setProduct(view.tfProduct.getText().trim());
         model.setDeliveryDate(view.dpDeliveryDate.getValue());

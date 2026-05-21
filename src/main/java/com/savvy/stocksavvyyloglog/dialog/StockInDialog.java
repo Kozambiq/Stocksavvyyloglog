@@ -5,6 +5,7 @@ import com.savvy.stocksavvyyloglog.util.DatabaseConnection;
 import com.savvy.stocksavvyyloglog.view.InventoryView;
 import javafx.animation.FadeTransition;
 import javafx.animation.TranslateTransition;
+import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
@@ -25,8 +26,6 @@ import java.time.format.DateTimeFormatter;
 
 /**
  * StockInDialog — records incoming stock and updates the stocks table quantity.
- * FIX: stock_in insert is now wrapped in its own try-catch so a missing column
- * won't block the stocks quantity update (the critical operation).
  */
 public class StockInDialog {
 
@@ -53,8 +52,8 @@ public class StockInDialog {
     private final Stage              dialog = new Stage();
     private TextField  tfQty;
     private TextField  tfUnit;
-    private ComboBox<String> cbCategory;
-    private ComboBox<String> cbCustomer;
+    private TextField  tfCategory;
+    private TextField  tfCustomer;
     private DatePicker dpDateIn;
     private TextArea   taNotes;
     private Label      errQty;
@@ -94,11 +93,10 @@ public class StockInDialog {
         dialog.centerOnScreen();
 
         loadDropdownValues();
-        setupAutocomplete();
 
-        // PREFILL: Set editor text AFTER setup to ensure it's handled by recursion guard
-        cbCategory.getEditor().setText(row.getCategory());
-        cbCustomer.getEditor().setText(row.getSupplier());
+        // PREFILL
+        tfCategory.setText(row.getCategory());
+        tfCustomer.setText(row.getSupplier());
 
         root.setOpacity(0);
         root.setTranslateY(18);
@@ -111,57 +109,58 @@ public class StockInDialog {
         dialog.show();
     }
 
-    private void setupAutocomplete() {
-        setupFieldAutocomplete(cbCustomer, stockDAO.getUniqueSuppliers());
-        setupFieldAutocomplete(cbCategory, getUniqueCategories());
+    private void loadDropdownValues() {
+        setupAutocomplete(tfCustomer, stockDAO.getUniqueSuppliers());
+        setupAutocomplete(tfCategory, getUniqueCategories());
     }
 
-    private void setupFieldAutocomplete(ComboBox<String> cb, java.util.List<String> allItems) {
-        cb.getItems().setAll(allItems);
-        final boolean[] isUpdating = {false};
-        cb.getEditor().textProperty().addListener((obs, oldVal, newVal) -> {
-            if (isUpdating[0]) return;
-            if (cb.isShowing() && cb.getSelectionModel().getSelectedIndex() != -1) return;
+    private void setupAutocomplete(TextField tf, java.util.List<String> items) {
+        ContextMenu suggestionsMenu = new ContextMenu();
+        suggestionsMenu.setPrefWidth(200);
 
-            // FIX: Don't trim immediately to allow spacebar input
-            if (newVal == null || newVal.isEmpty()) {
-                isUpdating[0] = true;
-                cb.getItems().setAll(allItems);
-                cb.hide();
-                isUpdating[0] = false;
-            } else {
-                String filter = newVal.toLowerCase();
-                java.util.List<String> filtered = new java.util.ArrayList<>();
-                for (String s : allItems) {
-                    if (s.toLowerCase().contains(filter)) filtered.add(s);
-                }
-
-                isUpdating[0] = true;
-                cb.getItems().setAll(filtered);
-                // FIX: Only show if the field is focused (prevent auto-open on popup load)
-                if (filtered.isEmpty()) {
-                    cb.hide();
-                } else if (cb.getEditor().isFocused()) {
-                    cb.show();
-                }
-                isUpdating[0] = false;
+        tf.textProperty().addListener((obs, oldV, newV) -> {
+            String filter = newV == null ? "" : newV.toLowerCase().trim();
+            if (filter.isEmpty()) {
+                suggestionsMenu.hide();
+                return;
             }
+
+            java.util.List<MenuItem> matches = new java.util.ArrayList<>();
+            for (String s : items) {
+                if (s.toLowerCase().contains(filter)) {
+                    MenuItem item = new MenuItem(s);
+                    item.setOnAction(e -> {
+                        tf.setText(s);
+                        tf.positionCaret(s.length());
+                        suggestionsMenu.hide();
+                    });
+                    matches.add(item);
+                }
+            }
+
+            if (!matches.isEmpty()) {
+                suggestionsMenu.getItems().setAll(matches);
+                if (!suggestionsMenu.isShowing()) {
+                    suggestionsMenu.show(tf, javafx.geometry.Side.BOTTOM, 0, 0);
+                }
+            } else {
+                suggestionsMenu.hide();
+            }
+        });
+
+        tf.focusedProperty().addListener((obs, oldV, newVal) -> {
+            if (!newVal) suggestionsMenu.hide();
         });
     }
 
     private java.util.List<String> getUniqueCategories() {
         java.util.List<String> cats = new java.util.ArrayList<>();
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement ps = conn.prepareStatement("SELECT DISTINCT category FROM stocks WHERE category IS NOT NULL AND category != ''")) {
+             PreparedStatement ps = conn.prepareStatement("SELECT DISTINCT category FROM stocks WHERE category IS NOT NULL AND category != '' ORDER BY category")) {
             ResultSet rs = ps.executeQuery();
             while (rs.next()) cats.add(rs.getString("category"));
         } catch (Exception e) { e.printStackTrace(); }
         return cats;
-    }
-
-    private void loadDropdownValues() {
-        cbCustomer.getItems().setAll(stockDAO.getUniqueSuppliers());
-        cbCategory.getItems().setAll(getUniqueCategories());
     }
 
     private HBox buildHeader() {
@@ -173,16 +172,17 @@ public class StockInDialog {
                         "-fx-border-width: 0 0 3 0; -fx-border-color: " + NAV_BORDER + "; " +
                         "-fx-background-radius: 12 12 0 0;"
         );
-        Label title = new Label("📥  Stock In  —  " + row.getProductName());
+        Label title = new Label("\uD83D\uDCE5  Stock In  —  " + row.getProductName());
         title.setStyle("-fx-font-family: Sans Serif; -fx-font-size: 15px; " +
                 "-fx-font-weight: bold; -fx-text-fill: #F1F8F2;");
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-        Button closeBtn = new Button("✕");
+        Button closeBtn = new Button("\u2715");
         closeBtn.setStyle("-fx-font-size: 13px; -fx-text-fill: #F1F8F2; " +
                 "-fx-background-color: rgba(255,255,255,0.15); " +
                 "-fx-border-color: rgba(255,255,255,0.3); -fx-border-width: 1; " +
-                "-fx-background-radius: 6; -fx-border-radius: 6; -fx-cursor: hand; -fx-padding: 4 10;");
+                "-fx-background-radius: 6; -fx-border-radius: 6; " +
+                "-fx-cursor: hand; -fx-padding: 4 10;");
         closeBtn.setOnAction(e -> dialog.close());
         header.getChildren().addAll(title, spacer, closeBtn);
         return header;
@@ -199,7 +199,7 @@ public class StockInDialog {
         successBanner.setStyle("-fx-background-color: " + SUCCESS_BG + "; " +
                 "-fx-border-color: #A5D6A7; -fx-border-width: 1; " +
                 "-fx-background-radius: 6; -fx-border-radius: 6;");
-        Label successLbl = new Label("✔   Stock In recorded successfully!");
+        Label successLbl = new Label("\u2714   Stock In recorded successfully!");
         successLbl.setStyle("-fx-font-family: Sans Serif; -fx-font-size: 13px; " +
                 "-fx-font-weight: bold; -fx-text-fill: " + SUCCESS_FG + ";");
         successBanner.getChildren().add(successLbl);
@@ -236,7 +236,7 @@ public class StockInDialog {
         bar.getChildren().addAll(
                 infoChip("Current Qty", row.getQuantity() + " " + row.getUnit()),
                 infoChip("Category",    row.getCategory()),
-                infoChip("Supplier",    row.getSupplier().isEmpty() ? "—" : row.getSupplier())
+                infoChip("Supplier",    row.getSupplier().isEmpty() ? "\u2014" : row.getSupplier())
         );
         return bar;
     }
@@ -289,19 +289,19 @@ public class StockInDialog {
     }
 
     private HBox buildDeliveryRow() {
-        cbCategory = new ComboBox<>();
-        cbCategory.setEditable(true);
-        HBox customCategory = createCustomComboBox(cbCategory, "Category", false);
+        tfCategory = new TextField();
+        tfCategory.setPromptText("Category");
+        styleInput(tfCategory);
         VBox categoryBox = new VBox(5);
         HBox.setHgrow(categoryBox, Priority.ALWAYS);
-        categoryBox.getChildren().addAll(fieldLabel("Category"), customCategory);
+        categoryBox.getChildren().addAll(fieldLabel("Category"), tfCategory);
 
-        cbCustomer = new ComboBox<>();
-        cbCustomer.setEditable(true);
-        HBox customCustomer = createCustomComboBox(cbCustomer, "e.g. John Doe", false);
+        tfCustomer = new TextField();
+        tfCustomer.setPromptText("e.g. John Doe");
+        styleInput(tfCustomer);
         VBox supplierBox = new VBox(5);
         HBox.setHgrow(supplierBox, Priority.ALWAYS);
-        supplierBox.getChildren().addAll(fieldLabel("Supplier"), customCustomer);
+        supplierBox.getChildren().addAll(fieldLabel("Supplier"), tfCustomer);
 
         dpDateIn = new DatePicker(LocalDate.now());
         dpDateIn.setMaxWidth(Double.MAX_VALUE);
@@ -318,71 +318,9 @@ public class StockInDialog {
         return row2;
     }
 
-    private HBox createCustomComboBox(ComboBox<String> comboBox, String prompt, boolean showArrow) {
-        comboBox.setPromptText(prompt);
-        styleComboBox(comboBox);
-        comboBox.setMaxWidth(Double.MAX_VALUE);
-
-        StackPane wrapper;
-        if (showArrow) {
-            Label arrow = new Label("\u25BC");
-            arrow.setStyle("-fx-text-fill: " + TEXT_MUTED + "; -fx-font-size: 10px; -fx-cursor: hand; -fx-padding: 0 10 0 0;");
-            arrow.setOnMouseClicked(e -> {
-                if (comboBox.isShowing()) comboBox.hide();
-                else comboBox.show();
-            });
-            wrapper = new StackPane(comboBox, arrow);
-            StackPane.setAlignment(arrow, Pos.CENTER_RIGHT);
-        } else {
-            wrapper = new StackPane(comboBox);
-        }
-
-        wrapper.setStyle(
-                "-fx-background-color: " + INPUT_BG + "; " +
-                "-fx-border-color: " + BORDER + "; " +
-                "-fx-border-radius: 7; -fx-background-radius: 7;"
-        );
-
-        HBox container = new HBox(wrapper);
-        container.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(wrapper, Priority.ALWAYS);
-        return container;
-    }
-
-    private void styleComboBox(ComboBox<String> comboBox) {
-        comboBox.setStyle(
-                "-fx-font-family: Sans Serif; -fx-font-size: 13px; " +
-                "-fx-background-color: transparent; " +
-                "-fx-border-color: transparent; " +
-                "-fx-padding: 0; -fx-text-fill: " + TEXT + ";"
-        );
-
-        if (comboBox.isEditable()) {
-            comboBox.getEditor().setStyle(
-                    "-fx-background-color: transparent; " +
-                    "-fx-padding: 7 10; -fx-text-fill: " + TEXT + ";"
-            );
-        }
-
-        comboBox.setCellFactory(listView -> new javafx.scene.control.ListCell<String>() {
-            @Override
-            protected void updateItem(String item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty || item == null) {
-                    setText(null);
-                    setGraphic(null);
-                } else {
-                    setText(item);
-                    setTextFill(Color.web(TEXT));
-                    setStyle("-fx-background-color: " + INPUT_BG + ";");
-                }
-            }
-        });
-    }
-
     private VBox buildNotesRow() {
         taNotes = new TextArea();
-        taNotes.setPromptText("Optional: batch number, remarks…");
+        taNotes.setPromptText("Optional: batch number, remarks\u2026");
         taNotes.setPrefRowCount(3);
         taNotes.setWrapText(true);
         taNotes.setStyle("-fx-font-family: Sans Serif; -fx-font-size: 13px; " +
@@ -403,7 +341,7 @@ public class StockInDialog {
                 "-fx-background-radius: 0 0 12 12;");
         Button cancelBtn = buildBtn("Cancel", false);
         cancelBtn.setOnAction(e -> dialog.close());
-        Button saveBtn = buildBtn("✔  Confirm Stock In", true);
+        Button saveBtn = buildBtn("\u2714  Confirm Stock In", true);
         saveBtn.setOnAction(e -> handleSave());
         footer.getChildren().addAll(cancelBtn, saveBtn);
         return footer;
@@ -418,9 +356,7 @@ public class StockInDialog {
                 ? dpDateIn.getValue().format(DateTimeFormatter.ISO_LOCAL_DATE)
                 : LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE);
 
-        String customerVal = cbCustomer.isEditable()
-                ? cbCustomer.getEditor().getText().trim()
-                : cbCustomer.getValue();
+        String customerVal = tfCustomer.getText().trim();
 
         try (Connection conn = DatabaseConnection.getConnection()) {
 
@@ -488,7 +424,7 @@ public class StockInDialog {
             double qty  = Double.parseDouble(qtyText);
             String unit = tfUnit.getText().trim().isEmpty() ? row.getUnit() : tfUnit.getText().trim();
             lblPreview.setText(String.format(
-                    "Adding %.2f %s of %s   —   New total: %.2f %s",
+                    "Adding %.2f %s of %s   \u2014   New total: %.2f %s",
                     qty, unit, row.getProductName(), row.getQuantity() + qty, unit));
             setVisible(previewBox, true);
         } catch (NumberFormatException e) {
@@ -499,7 +435,7 @@ public class StockInDialog {
     private void clearForm() {
         tfQty.clear();
         tfUnit.setText(row.getUnit());
-        cbCustomer.setValue(row.getSupplier());
+        tfCustomer.setText(row.getSupplier());
         dpDateIn.setValue(LocalDate.now());
         taNotes.clear();
         setVisible(previewBox, false);

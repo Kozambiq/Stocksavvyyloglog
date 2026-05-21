@@ -78,12 +78,9 @@ public class NewSalesOrderDialog {
 
         // Customer
         List<String> customers = dao.getCustomerNames();
-        ComboBox<String> customerBox = new ComboBox<>();
-        customerBox.getItems().addAll(customers);
-        customerBox.setEditable(true);
-        customerBox.setPromptText("Select or type customer…");
-        customerBox.setMaxWidth(Double.MAX_VALUE);
-        styleCombo(customerBox);
+        TextField customerField = styledField("Select or type customer…");
+        customerField.setMaxWidth(Double.MAX_VALUE);
+        setupAutocomplete(customerField, customers);
 
         // Unit Price (auto-filled on product select)
         TextField priceField = styledField("e.g. 150.00");
@@ -125,7 +122,7 @@ public class NewSalesOrderDialog {
         TextField qtyField = styledField("e.g. 10");
 
         // Add rows
-        addRow(grid, 0, "Customer *",      customerBox);
+        addRow(grid, 0, "Customer *",      customerField);
         addRow(grid, 1, "Product *",       productBox);
         addRow(grid, 2, "Quantity *",      qtyField);
         addRow(grid, 3, "Unit Price (₱) *", priceField);
@@ -152,12 +149,12 @@ public class NewSalesOrderDialog {
 
         saveBtn.setOnAction(e -> {
             // Validate
-            String customer = customerBox.getValue();
+            String customer = customerField.getText().trim();
             String product  = productInput.getText().trim();
             String qtyStr   = qtyField.getText().trim();
             String priceStr = priceField.getText().trim();
 
-            if (customer == null || customer.isBlank()) { showError("Customer is required."); return; }
+            if (customer.isBlank()) { showError("Customer is required."); return; }
             if (product.isBlank())  { showError("Product is required.");  return; }
             if (qtyStr.isBlank())   { showError("Quantity is required.");   return; }
             if (priceStr.isBlank()) { showError("Unit price is required."); return; }
@@ -214,8 +211,43 @@ public class NewSalesOrderDialog {
         return tf;
     }
 
-    private void styleCombo(ComboBox<String> box) {
-        box.setStyle("-fx-font-family: Sans Serif; -fx-font-size: 12px;");
+    private void setupAutocomplete(TextField tf, List<String> items) {
+        ContextMenu suggestionsMenu = new ContextMenu();
+        suggestionsMenu.setPrefWidth(200);
+
+        tf.textProperty().addListener((obs, oldV, newV) -> {
+            String filter = newV == null ? "" : newV.toLowerCase().trim();
+            if (filter.isEmpty()) {
+                suggestionsMenu.hide();
+                return;
+            }
+
+            java.util.List<MenuItem> matches = new java.util.ArrayList<>();
+            for (String s : items) {
+                if (s.toLowerCase().contains(filter)) {
+                    MenuItem item = new MenuItem(s);
+                    item.setOnAction(e -> {
+                        tf.setText(s);
+                        tf.positionCaret(s.length());
+                        suggestionsMenu.hide();
+                    });
+                    matches.add(item);
+                }
+            }
+
+            if (!matches.isEmpty()) {
+                suggestionsMenu.getItems().setAll(matches);
+                if (!suggestionsMenu.isShowing()) {
+                    suggestionsMenu.show(tf, javafx.geometry.Side.BOTTOM, 0, 0);
+                }
+            } else {
+                suggestionsMenu.hide();
+            }
+        });
+
+        tf.focusedProperty().addListener((obs, oldV, newVal) -> {
+            if (!newVal) suggestionsMenu.hide();
+        });
     }
 
     private void showError(String msg) {

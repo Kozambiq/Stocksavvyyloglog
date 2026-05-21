@@ -81,11 +81,11 @@ public class AddStockDialog {
 
     // ── Fields ────────────────────────────────────────────────────────────────
     private TextField        tfProductName;
-    private ComboBox<String> cbCategory;
+    private TextField        tfCategory;
     private TextField        tfQuantity;
-    private ComboBox<String> cbUnit;
+    private TextField        tfUnit;
     private TextField        tfCostPerUnit;
-    private ComboBox<String> cbCustomer;
+    private TextField        tfCustomer;
     private DatePicker       dpDateReceived;
     private DatePicker       dpExpiryDate;
     private TextField        tfLowStockThreshold;
@@ -150,73 +150,70 @@ public class AddStockDialog {
         ft.play(); tt.play();
 
         loadDropdownValues();
-        setupSupplierAutoComplete();
 
         dialog.show();
     }
 
-    private void setupSupplierAutoComplete() {
-        // Fetch current suppliers from database
-        java.util.List<String> allSuppliers = stockDAO.getUniqueSuppliers();
-        cbCustomer.getItems().setAll(allSuppliers);
+    // ── Autocomplete ─────────────────────────────────────────────────────────
+    private void loadDropdownValues() {
+        java.util.List<String> cats = new java.util.ArrayList<>();
+        java.util.List<String> units = new java.util.ArrayList<>();
+        java.util.List<String> sups = stockDAO.getUniqueSuppliers();
 
-        final boolean[] isUpdating = {false};
-        cbCustomer.getEditor().textProperty().addListener((obs, oldVal, newVal) -> {
-            if (isUpdating[0]) return;
-            // Only trigger if typing, not if selecting from list
-            if (cbCustomer.isShowing() && cbCustomer.getSelectionModel().getSelectedIndex() != -1) {
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            ResultSet rs = conn.prepareStatement(
+                "SELECT DISTINCT category FROM stocks WHERE category IS NOT NULL AND category != '' ORDER BY category").executeQuery();
+            while (rs.next()) cats.add(rs.getString(1));
+            
+            rs = conn.prepareStatement(
+                "SELECT DISTINCT unit FROM stocks WHERE unit IS NOT NULL AND unit != '' ORDER BY unit").executeQuery();
+            while (rs.next()) units.add(rs.getString(1));
+        } catch (Exception e) {
+            System.err.println("[AddStockDialog] Failed to load values: " + e.getMessage());
+        }
+
+        setupAutocomplete(tfCategory, cats);
+        setupAutocomplete(tfUnit,     units);
+        setupAutocomplete(tfCustomer, sups);
+    }
+
+    private void setupAutocomplete(TextField tf, java.util.List<String> items) {
+        ContextMenu suggestionsMenu = new ContextMenu();
+        suggestionsMenu.setPrefWidth(200);
+
+        tf.textProperty().addListener((obs, oldV, newV) -> {
+            String filter = newV == null ? "" : newV.toLowerCase().trim();
+            if (filter.isEmpty()) {
+                suggestionsMenu.hide();
                 return;
             }
 
-            // FIX: Don't trim immediately to allow spacebar input
-            if (newVal == null || newVal.isEmpty()) {
-                isUpdating[0] = true;
-                cbCustomer.getItems().setAll(allSuppliers);
-                cbCustomer.hide();
-                isUpdating[0] = false;
-            } else {
-                String filter = newVal.toLowerCase();
-                java.util.List<String> filtered = new java.util.ArrayList<>();
-                for (String s : allSuppliers) {
-                    if (s.toLowerCase().contains(filter)) {
-                        filtered.add(s);
-                    }
+            java.util.List<MenuItem> matches = new java.util.ArrayList<>();
+            for (String s : items) {
+                if (s.toLowerCase().contains(filter)) {
+                    MenuItem item = new MenuItem(s);
+                    item.setOnAction(e -> {
+                        tf.setText(s);
+                        tf.positionCaret(s.length());
+                        suggestionsMenu.hide();
+                    });
+                    matches.add(item);
                 }
+            }
 
-                isUpdating[0] = true;
-                cbCustomer.getItems().setAll(filtered);
-                // FIX: Only show if the field is focused (prevent auto-open on popup load)
-                if (filtered.isEmpty()) {
-                    cbCustomer.hide();
-                } else if (cbCustomer.getEditor().isFocused()) {
-                    cbCustomer.show();
+            if (!matches.isEmpty()) {
+                suggestionsMenu.getItems().setAll(matches);
+                if (!suggestionsMenu.isShowing()) {
+                    suggestionsMenu.show(tf, javafx.geometry.Side.BOTTOM, 0, 0);
                 }
-                isUpdating[0] = false;
+            } else {
+                suggestionsMenu.hide();
             }
         });
-    }
 
-    private void loadDropdownValues() {
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            PreparedStatement psCat = conn.prepareStatement(
-                    "SELECT DISTINCT category FROM stocks WHERE category IS NOT NULL AND category != '' ORDER BY category");
-            ResultSet rsCat = psCat.executeQuery();
-            while (rsCat.next()) {
-                cbCategory.getItems().add(rsCat.getString("category"));
-            }
-
-            PreparedStatement psUnit = conn.prepareStatement(
-                    "SELECT DISTINCT unit FROM stocks WHERE unit IS NOT NULL AND unit != '' ORDER BY unit");
-            ResultSet rsUnit = psUnit.executeQuery();
-            while (rsUnit.next()) {
-                cbUnit.getItems().add(rsUnit.getString("unit"));
-            }
-
-            // Load Suppliers
-            cbCustomer.getItems().addAll(stockDAO.getUniqueSuppliers());
-        } catch (Exception e) {
-            System.err.println("[AddStockDialog] Failed to load dropdown values: " + e.getMessage());
-        }
+        tf.focusedProperty().addListener((obs, oldV, newVal) -> {
+            if (!newVal) suggestionsMenu.hide();
+        });
     }
 
     // ── Header ────────────────────────────────────────────────────────────────
@@ -319,13 +316,13 @@ public class AddStockDialog {
         HBox.setHgrow(productBox, Priority.ALWAYS);
         productBox.getChildren().addAll(fieldLabel("Product Name *"), tfProductName, errProduct);
 
-        cbCategory = new ComboBox<>();
-        cbCategory.setEditable(true);
-        HBox customCategory = createCustomComboBox(cbCategory, "Enter or select category", true);
+        tfCategory = new TextField();
+        tfCategory.setPromptText("Enter or select category");
+        styleInput(tfCategory);
 
         VBox categoryBox = new VBox(5);
         HBox.setHgrow(categoryBox, Priority.ALWAYS);
-        categoryBox.getChildren().addAll(fieldLabel("Category"), customCategory);
+        categoryBox.getChildren().addAll(fieldLabel("Category"), tfCategory);
 
         HBox row = new HBox(12, productBox, categoryBox);
         row.setMaxWidth(Double.MAX_VALUE);
@@ -343,13 +340,13 @@ public class AddStockDialog {
             validateLowStock();
         });
 
-        cbUnit = new ComboBox<>();
-        cbUnit.setEditable(true);
-        cbUnit.setPrefWidth(90);
-        HBox customUnit = createCustomComboBox(cbUnit, "Unit", true);
-        cbUnit.valueProperty().addListener((o, ov, nv) -> updatePreview());
+        tfUnit = new TextField("kg");
+        tfUnit.setPromptText("Unit");
+        tfUnit.setPrefWidth(90);
+        styleInput(tfUnit);
+        tfUnit.textProperty().addListener((o, ov, nv) -> updatePreview());
 
-        HBox qtyInner = new HBox(6, tfQuantity, customUnit);
+        HBox qtyInner = new HBox(6, tfQuantity, tfUnit);
         HBox.setHgrow(tfQuantity, Priority.ALWAYS);
 
         errQty = errorLabel("Enter a valid quantity.");
@@ -400,15 +397,14 @@ public class AddStockDialog {
 
     // ── Delivery Row ──────────────────────────────────────────────────────────
     private HBox buildDeliveryRow() {
-        cbCustomer = new ComboBox<>();
-        cbCustomer.setEditable(true);
-        // Hide arrow for supplier field to support autocomplete feel
-        HBox customCustomer = createCustomComboBox(cbCustomer, "e.g. John Doe", false);
+        tfCustomer = new TextField();
+        tfCustomer.setPromptText("e.g. John Doe");
+        styleInput(tfCustomer);
 
         VBox supplierBox = new VBox(5);
         HBox.setHgrow(supplierBox, Priority.ALWAYS);
         errCustomer = errorLabel("Supplier is required.");
-        supplierBox.getChildren().addAll(fieldLabel("Supplier *"), customCustomer, errCustomer);
+        supplierBox.getChildren().addAll(fieldLabel("Supplier *"), tfCustomer, errCustomer);
 
         dpDateReceived = new DatePicker(LocalDate.now());
         dpDateReceived.setMaxWidth(Double.MAX_VALUE);
@@ -514,19 +510,13 @@ public class AddStockDialog {
         double costPerUnit = tfCostPerUnit.getText().trim().isEmpty()
                 ? 0 : Double.parseDouble(tfCostPerUnit.getText().trim());
 
-        String catVal = cbCategory.isEditable()
-                ? cbCategory.getEditor().getText().trim()
-                : cbCategory.getValue();
+        String catVal = tfCategory.getText().trim();
         String category = (catVal != null && !catVal.isEmpty()) ? catVal.toUpperCase() : null;
 
-        String unitVal = cbUnit.isEditable()
-                ? cbUnit.getEditor().getText().trim()
-                : cbUnit.getValue();
+        String unitVal = tfUnit.getText().trim();
         String unit = (unitVal != null && !unitVal.isEmpty()) ? unitVal.toUpperCase() : null;
 
-        String customerVal = cbCustomer.isEditable()
-                ? cbCustomer.getEditor().getText().trim()
-                : cbCustomer.getValue();
+        String customerVal = tfCustomer.getText().trim();
 
         Stock stock = new Stock(
                 productName,
@@ -636,7 +626,7 @@ public class AddStockDialog {
     private void updatePreview() {
         String product  = tfProductName.getText().trim();
         String qtyText  = tfQuantity.getText().trim();
-        String unit     = cbUnit.getValue();
+        String unit     = tfUnit.getText().trim();
         String costText = tfCostPerUnit.getText().trim();
 
         if (product == null || product.isEmpty() || qtyText.isEmpty()) {
@@ -658,11 +648,11 @@ public class AddStockDialog {
     // ── Clear ─────────────────────────────────────────────────────────────────
     private void clearForm() {
         tfProductName.clear();
-        cbCategory.setValue(null);
+        tfCategory.clear();
         tfQuantity.clear();
-        cbUnit.setValue("kg");
+        tfUnit.setText("kg");
         tfCostPerUnit.clear();
-        cbCustomer.setValue(null);
+        tfCustomer.clear();
         dpDateReceived.setValue(LocalDate.now());
         dpExpiryDate.setValue(null);
         tfLowStockThreshold.setText("5");
@@ -713,70 +703,6 @@ public class AddStockDialog {
                         "-fx-border-color: " + border() + "; -fx-border-radius: 7; -fx-background-radius: 7; " +
                         "-fx-padding: 7 10; -fx-text-fill: " + text() + ";"
         );
-    }
-
-    @SuppressWarnings("unchecked")
-    private void styleComboBox(ComboBox<String> comboBox) {
-        // Hide default arrow button by making it transparent and zero width
-        comboBox.setStyle(
-                "-fx-font-family: Sans Serif; -fx-font-size: 13px; " +
-                "-fx-background-color: transparent; " +
-                "-fx-border-color: transparent; " +
-                "-fx-padding: 0; -fx-text-fill: " + text() + ";"
-        );
-
-        if (comboBox.isEditable()) {
-            comboBox.getEditor().setStyle(
-                    "-fx-background-color: transparent; " +
-                    "-fx-padding: 7 10; -fx-text-fill: " + text() + ";"
-            );
-        }
-
-        comboBox.setCellFactory(listView -> new javafx.scene.control.ListCell<String>() {
-            @Override
-            protected void updateItem(String item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty || item == null) {
-                    setText(null);
-                    setGraphic(null);
-                } else {
-                    setText(item);
-                    setTextFill(textColor());
-                    setStyle("-fx-background-color: " + inputBg() + ";");
-                }
-            }
-        });
-    }
-
-    private HBox createCustomComboBox(ComboBox<String> comboBox, String prompt, boolean showArrow) {
-        comboBox.setPromptText(prompt);
-        styleComboBox(comboBox);
-        comboBox.setMaxWidth(Double.MAX_VALUE);
-
-        StackPane wrapper;
-        if (showArrow) {
-            Label arrow = new Label("\u25BC");
-            arrow.setStyle("-fx-text-fill: " + textMuted() + "; -fx-font-size: 10px; -fx-cursor: hand; -fx-padding: 0 10 0 0;");
-            arrow.setOnMouseClicked(e -> {
-                if (comboBox.isShowing()) comboBox.hide();
-                else comboBox.show();
-            });
-            wrapper = new StackPane(comboBox, arrow);
-            StackPane.setAlignment(arrow, Pos.CENTER_RIGHT);
-        } else {
-            wrapper = new StackPane(comboBox);
-        }
-
-        wrapper.setStyle(
-                "-fx-background-color: " + inputBg() + "; " +
-                "-fx-border-color: " + border() + "; " +
-                "-fx-border-radius: 7; -fx-background-radius: 7;"
-        );
-
-        HBox container = new HBox(wrapper);
-        container.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(wrapper, Priority.ALWAYS);
-        return container;
     }
 
     private javafx.scene.paint.Paint textColor() {
