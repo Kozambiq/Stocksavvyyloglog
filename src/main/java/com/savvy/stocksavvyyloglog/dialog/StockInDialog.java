@@ -52,6 +52,7 @@ public class StockInDialog {
     private final Stage              dialog = new Stage();
     private TextField  tfQty;
     private TextField  tfUnit;
+    private ComboBox<String> cbCategory;
     private ComboBox<String> cbCustomer;
     private DatePicker dpDateIn;
     private TextArea   taNotes;
@@ -86,13 +87,16 @@ public class StockInDialog {
         );
         root.getChildren().addAll(buildHeader(), buildBody(), buildFooter());
 
-        Scene scene = new Scene(root, 500, 560);
+        Scene scene = new Scene(root, 500, 600);
         scene.setFill(Color.TRANSPARENT);
         dialog.setScene(scene);
         dialog.centerOnScreen();
 
-        cbCustomer.getItems().addAll(stockDAO.getUniqueSuppliers());
+        loadDropdownValues();
+        setupAutocomplete();
+
         cbCustomer.setValue(row.getSupplier());
+        cbCategory.setValue(row.getCategory());
 
         root.setOpacity(0);
         root.setTranslateY(18);
@@ -103,6 +107,48 @@ public class StockInDialog {
         ft.play(); tt.play();
 
         dialog.show();
+    }
+
+    private void setupAutocomplete() {
+        setupFieldAutocomplete(cbCustomer, stockDAO.getUniqueSuppliers());
+        setupFieldAutocomplete(cbCategory, getUniqueCategories());
+    }
+
+    private void setupFieldAutocomplete(ComboBox<String> cb, java.util.List<String> allItems) {
+        cb.getItems().setAll(allItems);
+        cb.getEditor().textProperty().addListener((obs, oldVal, newVal) -> {
+            if (cb.isShowing() && cb.getSelectionModel().getSelectedIndex() != -1) return;
+            if (newVal == null || newVal.trim().isEmpty()) {
+                cb.getItems().setAll(allItems);
+                cb.hide();
+            } else {
+                String filter = newVal.toLowerCase().trim();
+                java.util.List<String> filtered = new java.util.ArrayList<>();
+                for (String s : allItems) {
+                    if (s.toLowerCase().contains(filter)) filtered.add(s);
+                }
+                if (filtered.isEmpty()) cb.hide();
+                else {
+                    cb.getItems().setAll(filtered);
+                    if (!cb.isShowing()) cb.show();
+                }
+            }
+        });
+    }
+
+    private java.util.List<String> getUniqueCategories() {
+        java.util.List<String> cats = new java.util.ArrayList<>();
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement("SELECT DISTINCT category FROM stocks WHERE category IS NOT NULL AND category != ''")) {
+            ResultSet rs = ps.executeQuery();
+            while (rs.next()) cats.add(rs.getString("category"));
+        } catch (Exception e) { e.printStackTrace(); }
+        return cats;
+    }
+
+    private void loadDropdownValues() {
+        cbCustomer.getItems().setAll(stockDAO.getUniqueSuppliers());
+        cbCategory.getItems().setAll(getUniqueCategories());
     }
 
     private HBox buildHeader() {
@@ -230,13 +276,19 @@ public class StockInDialog {
     }
 
     private HBox buildDeliveryRow() {
+        cbCategory = new ComboBox<>();
+        cbCategory.setEditable(true);
+        HBox customCategory = createCustomComboBox(cbCategory, "Category", false);
+        VBox categoryBox = new VBox(5);
+        HBox.setHgrow(categoryBox, Priority.ALWAYS);
+        categoryBox.getChildren().addAll(fieldLabel("Category"), customCategory);
+
         cbCustomer = new ComboBox<>();
         cbCustomer.setEditable(true);
-        cbCustomer.setPromptText("e.g. John Doe");
-        styleInput(cbCustomer);
+        HBox customCustomer = createCustomComboBox(cbCustomer, "e.g. John Doe", false);
         VBox supplierBox = new VBox(5);
         HBox.setHgrow(supplierBox, Priority.ALWAYS);
-        supplierBox.getChildren().addAll(fieldLabel("Supplier"), cbCustomer);
+        supplierBox.getChildren().addAll(fieldLabel("Supplier"), customCustomer);
 
         dpDateIn = new DatePicker(LocalDate.now());
         dpDateIn.setMaxWidth(Double.MAX_VALUE);
@@ -245,9 +297,74 @@ public class StockInDialog {
         HBox.setHgrow(dateBox, Priority.ALWAYS);
         dateBox.getChildren().addAll(fieldLabel("Date In"), dpDateIn);
 
-        HBox row2 = new HBox(12, supplierBox, dateBox);
+        HBox row1 = new HBox(12, categoryBox, supplierBox);
+        row1.setMaxWidth(Double.MAX_VALUE);
+        HBox row2 = new HBox(12, row1, dateBox);
+        HBox.setHgrow(row1, Priority.ALWAYS);
         row2.setMaxWidth(Double.MAX_VALUE);
         return row2;
+    }
+
+    private HBox createCustomComboBox(ComboBox<String> comboBox, String prompt, boolean showArrow) {
+        comboBox.setPromptText(prompt);
+        styleComboBox(comboBox);
+        comboBox.setMaxWidth(Double.MAX_VALUE);
+
+        StackPane wrapper;
+        if (showArrow) {
+            Label arrow = new Label("\u25BC");
+            arrow.setStyle("-fx-text-fill: " + TEXT_MUTED + "; -fx-font-size: 10px; -fx-cursor: hand; -fx-padding: 0 10 0 0;");
+            arrow.setOnMouseClicked(e -> {
+                if (comboBox.isShowing()) comboBox.hide();
+                else comboBox.show();
+            });
+            wrapper = new StackPane(comboBox, arrow);
+            StackPane.setAlignment(arrow, Pos.CENTER_RIGHT);
+        } else {
+            wrapper = new StackPane(comboBox);
+        }
+
+        wrapper.setStyle(
+                "-fx-background-color: " + INPUT_BG + "; " +
+                "-fx-border-color: " + BORDER + "; " +
+                "-fx-border-radius: 7; -fx-background-radius: 7;"
+        );
+
+        HBox container = new HBox(wrapper);
+        container.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(wrapper, Priority.ALWAYS);
+        return container;
+    }
+
+    private void styleComboBox(ComboBox<String> comboBox) {
+        comboBox.setStyle(
+                "-fx-font-family: Sans Serif; -fx-font-size: 13px; " +
+                "-fx-background-color: transparent; " +
+                "-fx-border-color: transparent; " +
+                "-fx-padding: 0; -fx-text-fill: " + TEXT + ";"
+        );
+
+        if (comboBox.isEditable()) {
+            comboBox.getEditor().setStyle(
+                    "-fx-background-color: transparent; " +
+                    "-fx-padding: 7 10; -fx-text-fill: " + TEXT + ";"
+            );
+        }
+
+        comboBox.setCellFactory(listView -> new javafx.scene.control.ListCell<String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    setText(item);
+                    setTextFill(Color.web(TEXT));
+                    setStyle("-fx-background-color: " + INPUT_BG + ";");
+                }
+            }
+        });
     }
 
     private VBox buildNotesRow() {

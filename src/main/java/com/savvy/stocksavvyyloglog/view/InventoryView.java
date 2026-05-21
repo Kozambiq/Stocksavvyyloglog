@@ -445,11 +445,20 @@ public class InventoryView {
 
         // ── Form fields ───────────────────────────────────────────────────────
         TextField fName     = styledField("Product Name *",        isEdit ? existing.getProductName() : "");
-        TextField fCategory = styledField("Category",              isEdit ? existing.getCategory()    : "");
+        ComboBox<String> cbCategory = new ComboBox<>();
+        cbCategory.setEditable(true);
+        cbCategory.setValue(isEdit ? existing.getCategory() : "");
+        HBox fCategory = createCustomComboBox(cbCategory, "Category", false);
+
         TextField fQty      = styledField("Quantity *",            isEdit ? existing.getQuantity()    : "");
         TextField fUnit     = styledField("Unit (e.g. kg, pcs) *", isEdit ? existing.getUnit()        : "");
         TextField fCost     = styledField("Cost per Unit (₱)",     isEdit ? existing.getCostPerUnit().replace("₱","") : "");
-        TextField fSupplier = styledField("Supplier",              isEdit ? existing.getSupplier()   : "");
+
+        ComboBox<String> cbSupplier = new ComboBox<>();
+        cbSupplier.setEditable(true);
+        cbSupplier.setValue(isEdit ? existing.getSupplier() : "");
+        HBox fSupplier = createCustomComboBox(cbSupplier, "Supplier", false);
+
         TextField fDate     = styledField("YYYY-MM-DD",
                 isEdit ? existing.getDateReceived() : LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE));
         TextField fLowStock = styledField("e.g. 5",                String.valueOf(thresholdVal));
@@ -458,6 +467,8 @@ public class InventoryView {
         fNotes.setPrefRowCount(3);
         fNotes.setWrapText(true);
         fNotes.setStyle(inputStyle());
+
+        setupEditAutocomplete(cbCategory, cbSupplier);
 
         // Error labels
         Label errName = errorLabel("Please enter a product name.");
@@ -543,6 +554,8 @@ public class InventoryView {
             String unit    = fUnit.getText().trim();
             String costStr = fCost.getText().trim();
             String lowStr  = fLowStock.getText().trim();
+            String catVal  = cbCategory.getEditor().getText().trim();
+            String supVal  = cbSupplier.getEditor().getText().trim();
 
             validateEditCost(fCost, errCost);
             validateEditLowStock(fQty, fLowStock, errLow);
@@ -565,9 +578,9 @@ public class InventoryView {
                     PreparedStatement ps = conn.prepareStatement(
                             "INSERT INTO stocks (product_name, category, quantity, unit, cost_per_unit, supplier, date_received, notes, low_stock_threshold) " +
                                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                    ps.setString(1, name);     ps.setString(2, fCategory.getText().trim());
+                    ps.setString(1, name);     ps.setString(2, catVal);
                     ps.setDouble(3, qty);      ps.setString(4, unit);
-                    ps.setDouble(5, cost);     ps.setString(6, fSupplier.getText().trim());
+                    ps.setDouble(5, cost);     ps.setString(6, supVal);
                     ps.setString(7, dateStr);  ps.setString(8, fNotes.getText().trim());
                     ps.setInt(9, low);
                     ps.executeUpdate();
@@ -575,9 +588,9 @@ public class InventoryView {
                     PreparedStatement ps = conn.prepareStatement(
                             "UPDATE stocks SET product_name=?, category=?, quantity=?, unit=?, " +
                                     "cost_per_unit=?, supplier=?, date_received=?, notes=?, low_stock_threshold=? WHERE id=?");
-                    ps.setString(1, name);     ps.setString(2, fCategory.getText().trim());
+                    ps.setString(1, name);     ps.setString(2, catVal);
                     ps.setDouble(3, qty);      ps.setString(4, unit);
-                    ps.setDouble(5, cost);     ps.setString(6, fSupplier.getText().trim());
+                    ps.setDouble(5, cost);     ps.setString(6, supVal);
                     ps.setString(7, dateStr);  ps.setString(8, fNotes.getText().trim());
                     ps.setInt(9, low);         ps.setInt(10, existing.getId());
                     ps.executeUpdate();
@@ -599,6 +612,103 @@ public class InventoryView {
         dialog.setScene(scene);
         dialog.centerOnScreen();
         dialog.show();
+    }
+
+    private void setupEditAutocomplete(ComboBox<String> cbCat, ComboBox<String> cbSup) {
+        java.util.List<String> sups = new java.util.ArrayList<>();
+        java.util.List<String> cats = new java.util.ArrayList<>();
+
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            ResultSet rs = conn.prepareStatement("SELECT DISTINCT supplier FROM stocks WHERE supplier IS NOT NULL AND supplier != ''").executeQuery();
+            while (rs.next()) sups.add(rs.getString(1));
+            rs = conn.prepareStatement("SELECT DISTINCT category FROM stocks WHERE category IS NOT NULL AND category != ''").executeQuery();
+            while (rs.next()) cats.add(rs.getString(1));
+        } catch (Exception e) { e.printStackTrace(); }
+
+        setupSingleAutocomplete(cbSup, sups);
+        setupSingleAutocomplete(cbCat, cats);
+    }
+
+    private void setupSingleAutocomplete(ComboBox<String> cb, java.util.List<String> items) {
+        cb.getItems().setAll(items);
+        cb.getEditor().textProperty().addListener((obs, oldV, newV) -> {
+            if (cb.isShowing() && cb.getSelectionModel().getSelectedIndex() != -1) return;
+            if (newV == null || newV.trim().isEmpty()) {
+                cb.getItems().setAll(items);
+                cb.hide();
+            } else {
+                String filter = newV.toLowerCase().trim();
+                java.util.List<String> filtered = new java.util.ArrayList<>();
+                for (String s : items) if (s.toLowerCase().contains(filter)) filtered.add(s);
+                if (filtered.isEmpty()) cb.hide();
+                else {
+                    cb.getItems().setAll(filtered);
+                    if (!cb.isShowing()) cb.show();
+                }
+            }
+        });
+    }
+
+    private HBox createCustomComboBox(ComboBox<String> comboBox, String prompt, boolean showArrow) {
+        comboBox.setPromptText(prompt);
+        styleComboBox(comboBox);
+        comboBox.setMaxWidth(Double.MAX_VALUE);
+
+        StackPane wrapper;
+        if (showArrow) {
+            Label arrow = new Label("\u25BC");
+            arrow.setStyle("-fx-text-fill: " + L_TEXT_MUTED + "; -fx-font-size: 10px; -fx-cursor: hand; -fx-padding: 0 10 0 0;");
+            arrow.setOnMouseClicked(e -> {
+                if (comboBox.isShowing()) comboBox.hide();
+                else comboBox.show();
+            });
+            wrapper = new StackPane(comboBox, arrow);
+            StackPane.setAlignment(arrow, Pos.CENTER_RIGHT);
+        } else {
+            wrapper = new StackPane(comboBox);
+        }
+
+        wrapper.setStyle(
+                "-fx-background-color: " + L_INPUT_BG + "; " +
+                "-fx-border-color: " + L_BORDER + "; " +
+                "-fx-border-radius: 7; -fx-background-radius: 7;"
+        );
+
+        HBox container = new HBox(wrapper);
+        container.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(wrapper, Priority.ALWAYS);
+        return container;
+    }
+
+    private void styleComboBox(ComboBox<String> comboBox) {
+        comboBox.setStyle(
+                "-fx-font-family: Sans Serif; -fx-font-size: 13px; " +
+                "-fx-background-color: transparent; " +
+                "-fx-border-color: transparent; " +
+                "-fx-padding: 0; -fx-text-fill: " + L_TEXT + ";"
+        );
+
+        if (comboBox.isEditable()) {
+            comboBox.getEditor().setStyle(
+                    "-fx-background-color: transparent; " +
+                    "-fx-padding: 7 10; -fx-text-fill: " + L_TEXT + ";"
+            );
+        }
+
+        comboBox.setCellFactory(listView -> new javafx.scene.control.ListCell<String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    setText(item);
+                    setTextFill(Color.web(L_TEXT));
+                    setStyle("-fx-background-color: " + L_INPUT_BG + ";");
+                }
+            }
+        });
     }
 
     // ── Dialog style helpers ──────────────────────────────────────────────────

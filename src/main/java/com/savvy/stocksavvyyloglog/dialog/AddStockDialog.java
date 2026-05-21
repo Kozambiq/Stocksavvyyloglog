@@ -150,8 +150,44 @@ public class AddStockDialog {
         ft.play(); tt.play();
 
         loadDropdownValues();
+        setupSupplierAutoComplete();
 
         dialog.show();
+    }
+
+    private void setupSupplierAutoComplete() {
+        // Fetch current suppliers from database
+        java.util.List<String> allSuppliers = stockDAO.getUniqueSuppliers();
+        cbCustomer.getItems().setAll(allSuppliers);
+
+        cbCustomer.getEditor().textProperty().addListener((obs, oldVal, newVal) -> {
+            // Only trigger if typing, not if selecting from list
+            if (cbCustomer.isShowing() && cbCustomer.getSelectionModel().getSelectedIndex() != -1) {
+                return;
+            }
+
+            if (newVal == null || newVal.trim().isEmpty()) {
+                cbCustomer.getItems().setAll(allSuppliers);
+                cbCustomer.hide();
+            } else {
+                String filter = newVal.toLowerCase().trim();
+                java.util.List<String> filtered = new java.util.ArrayList<>();
+                for (String s : allSuppliers) {
+                    if (s.toLowerCase().contains(filter)) {
+                        filtered.add(s);
+                    }
+                }
+
+                if (filtered.isEmpty()) {
+                    cbCustomer.hide();
+                } else {
+                    cbCustomer.getItems().setAll(filtered);
+                    if (!cbCustomer.isShowing()) {
+                        cbCustomer.show();
+                    }
+                }
+            }
+        });
     }
 
     private void loadDropdownValues() {
@@ -279,7 +315,7 @@ public class AddStockDialog {
 
         cbCategory = new ComboBox<>();
         cbCategory.setEditable(true);
-        HBox customCategory = createCustomComboBox(cbCategory, "Enter or select category");
+        HBox customCategory = createCustomComboBox(cbCategory, "Enter or select category", true);
 
         VBox categoryBox = new VBox(5);
         HBox.setHgrow(categoryBox, Priority.ALWAYS);
@@ -304,7 +340,7 @@ public class AddStockDialog {
         cbUnit = new ComboBox<>();
         cbUnit.setEditable(true);
         cbUnit.setPrefWidth(90);
-        HBox customUnit = createCustomComboBox(cbUnit, "Unit");
+        HBox customUnit = createCustomComboBox(cbUnit, "Unit", true);
         cbUnit.valueProperty().addListener((o, ov, nv) -> updatePreview());
 
         HBox qtyInner = new HBox(6, tfQuantity, customUnit);
@@ -360,7 +396,8 @@ public class AddStockDialog {
     private HBox buildDeliveryRow() {
         cbCustomer = new ComboBox<>();
         cbCustomer.setEditable(true);
-        HBox customCustomer = createCustomComboBox(cbCustomer, "e.g. John Doe");
+        // Hide arrow for supplier field to support autocomplete feel
+        HBox customCustomer = createCustomComboBox(cbCustomer, "e.g. John Doe", false);
 
         VBox supplierBox = new VBox(5);
         HBox.setHgrow(supplierBox, Priority.ALWAYS);
@@ -705,20 +742,25 @@ public class AddStockDialog {
         });
     }
 
-    private HBox createCustomComboBox(ComboBox<String> comboBox, String prompt) {
+    private HBox createCustomComboBox(ComboBox<String> comboBox, String prompt, boolean showArrow) {
         comboBox.setPromptText(prompt);
         styleComboBox(comboBox);
         comboBox.setMaxWidth(Double.MAX_VALUE);
 
-        Label arrow = new Label("\u25BC");
-        arrow.setStyle("-fx-text-fill: " + textMuted() + "; -fx-font-size: 10px; -fx-cursor: hand; -fx-padding: 0 10 0 0;");
-        arrow.setOnMouseClicked(e -> {
-            if (comboBox.isShowing()) comboBox.hide();
-            else comboBox.show();
-        });
+        StackPane wrapper;
+        if (showArrow) {
+            Label arrow = new Label("\u25BC");
+            arrow.setStyle("-fx-text-fill: " + textMuted() + "; -fx-font-size: 10px; -fx-cursor: hand; -fx-padding: 0 10 0 0;");
+            arrow.setOnMouseClicked(e -> {
+                if (comboBox.isShowing()) comboBox.hide();
+                else comboBox.show();
+            });
+            wrapper = new StackPane(comboBox, arrow);
+            StackPane.setAlignment(arrow, Pos.CENTER_RIGHT);
+        } else {
+            wrapper = new StackPane(comboBox);
+        }
 
-        StackPane wrapper = new StackPane(comboBox, arrow);
-        StackPane.setAlignment(arrow, Pos.CENTER_RIGHT);
         wrapper.setStyle(
                 "-fx-background-color: " + inputBg() + "; " +
                 "-fx-border-color: " + border() + "; " +
