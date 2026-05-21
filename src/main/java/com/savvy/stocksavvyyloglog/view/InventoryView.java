@@ -447,7 +447,6 @@ public class InventoryView {
         TextField fName     = styledField("Product Name *",        isEdit ? existing.getProductName() : "");
         ComboBox<String> cbCategory = new ComboBox<>();
         cbCategory.setEditable(true);
-        cbCategory.setValue(isEdit ? existing.getCategory() : "");
         HBox fCategory = createCustomComboBox(cbCategory, "Category", false);
 
         TextField fQty      = styledField("Quantity *",            isEdit ? existing.getQuantity()    : "");
@@ -456,7 +455,6 @@ public class InventoryView {
 
         ComboBox<String> cbSupplier = new ComboBox<>();
         cbSupplier.setEditable(true);
-        cbSupplier.setValue(isEdit ? existing.getSupplier() : "");
         HBox fSupplier = createCustomComboBox(cbSupplier, "Supplier", false);
 
         TextField fDate     = styledField("YYYY-MM-DD",
@@ -469,6 +467,12 @@ public class InventoryView {
         fNotes.setStyle(inputStyle());
 
         setupEditAutocomplete(cbCategory, cbSupplier);
+
+        // PREFILL: Set editor text AFTER setup to ensure it's handled by recursion guard
+        if (isEdit) {
+            cbCategory.getEditor().setText(existing.getCategory());
+            cbSupplier.getEditor().setText(existing.getSupplier());
+        }
 
         // Error labels
         Label errName = errorLabel("Please enter a product name.");
@@ -631,20 +635,31 @@ public class InventoryView {
 
     private void setupSingleAutocomplete(ComboBox<String> cb, java.util.List<String> items) {
         cb.getItems().setAll(items);
+        final boolean[] isUpdating = {false};
         cb.getEditor().textProperty().addListener((obs, oldV, newV) -> {
+            if (isUpdating[0]) return;
             if (cb.isShowing() && cb.getSelectionModel().getSelectedIndex() != -1) return;
-            if (newV == null || newV.trim().isEmpty()) {
+
+            // FIX: Don't trim immediately to allow spacebar input
+            if (newV == null || newV.isEmpty()) {
+                isUpdating[0] = true;
                 cb.getItems().setAll(items);
                 cb.hide();
+                isUpdating[0] = false;
             } else {
-                String filter = newV.toLowerCase().trim();
+                String filter = newV.toLowerCase();
                 java.util.List<String> filtered = new java.util.ArrayList<>();
                 for (String s : items) if (s.toLowerCase().contains(filter)) filtered.add(s);
-                if (filtered.isEmpty()) cb.hide();
-                else {
-                    cb.getItems().setAll(filtered);
-                    if (!cb.isShowing()) cb.show();
+                
+                isUpdating[0] = true;
+                cb.getItems().setAll(filtered);
+                // FIX: Only show if the field is focused (prevent auto-open on popup load)
+                if (filtered.isEmpty()) {
+                    cb.hide();
+                } else if (cb.getEditor().isFocused()) {
+                    cb.show();
                 }
+                isUpdating[0] = false;
             }
         });
     }

@@ -19,6 +19,7 @@ import javafx.util.Duration;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
@@ -95,8 +96,9 @@ public class StockInDialog {
         loadDropdownValues();
         setupAutocomplete();
 
-        cbCustomer.setValue(row.getSupplier());
-        cbCategory.setValue(row.getCategory());
+        // PREFILL: Set editor text AFTER setup to ensure it's handled by recursion guard
+        cbCategory.getEditor().setText(row.getCategory());
+        cbCustomer.getEditor().setText(row.getSupplier());
 
         root.setOpacity(0);
         root.setTranslateY(18);
@@ -116,22 +118,33 @@ public class StockInDialog {
 
     private void setupFieldAutocomplete(ComboBox<String> cb, java.util.List<String> allItems) {
         cb.getItems().setAll(allItems);
+        final boolean[] isUpdating = {false};
         cb.getEditor().textProperty().addListener((obs, oldVal, newVal) -> {
+            if (isUpdating[0]) return;
             if (cb.isShowing() && cb.getSelectionModel().getSelectedIndex() != -1) return;
-            if (newVal == null || newVal.trim().isEmpty()) {
+
+            // FIX: Don't trim immediately to allow spacebar input
+            if (newVal == null || newVal.isEmpty()) {
+                isUpdating[0] = true;
                 cb.getItems().setAll(allItems);
                 cb.hide();
+                isUpdating[0] = false;
             } else {
-                String filter = newVal.toLowerCase().trim();
+                String filter = newVal.toLowerCase();
                 java.util.List<String> filtered = new java.util.ArrayList<>();
                 for (String s : allItems) {
                     if (s.toLowerCase().contains(filter)) filtered.add(s);
                 }
-                if (filtered.isEmpty()) cb.hide();
-                else {
-                    cb.getItems().setAll(filtered);
-                    if (!cb.isShowing()) cb.show();
+
+                isUpdating[0] = true;
+                cb.getItems().setAll(filtered);
+                // FIX: Only show if the field is focused (prevent auto-open on popup load)
+                if (filtered.isEmpty()) {
+                    cb.hide();
+                } else if (cb.getEditor().isFocused()) {
+                    cb.show();
                 }
+                isUpdating[0] = false;
             }
         });
     }

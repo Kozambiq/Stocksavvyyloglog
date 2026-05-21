@@ -160,17 +160,22 @@ public class AddStockDialog {
         java.util.List<String> allSuppliers = stockDAO.getUniqueSuppliers();
         cbCustomer.getItems().setAll(allSuppliers);
 
+        final boolean[] isUpdating = {false};
         cbCustomer.getEditor().textProperty().addListener((obs, oldVal, newVal) -> {
+            if (isUpdating[0]) return;
             // Only trigger if typing, not if selecting from list
             if (cbCustomer.isShowing() && cbCustomer.getSelectionModel().getSelectedIndex() != -1) {
                 return;
             }
 
-            if (newVal == null || newVal.trim().isEmpty()) {
+            // FIX: Don't trim immediately to allow spacebar input
+            if (newVal == null || newVal.isEmpty()) {
+                isUpdating[0] = true;
                 cbCustomer.getItems().setAll(allSuppliers);
                 cbCustomer.hide();
+                isUpdating[0] = false;
             } else {
-                String filter = newVal.toLowerCase().trim();
+                String filter = newVal.toLowerCase();
                 java.util.List<String> filtered = new java.util.ArrayList<>();
                 for (String s : allSuppliers) {
                     if (s.toLowerCase().contains(filter)) {
@@ -178,14 +183,15 @@ public class AddStockDialog {
                     }
                 }
 
+                isUpdating[0] = true;
+                cbCustomer.getItems().setAll(filtered);
+                // FIX: Only show if the field is focused (prevent auto-open on popup load)
                 if (filtered.isEmpty()) {
                     cbCustomer.hide();
-                } else {
-                    cbCustomer.getItems().setAll(filtered);
-                    if (!cbCustomer.isShowing()) {
-                        cbCustomer.show();
-                    }
+                } else if (cbCustomer.getEditor().isFocused()) {
+                    cbCustomer.show();
                 }
+                isUpdating[0] = false;
             }
         });
     }
